@@ -1,27 +1,27 @@
+from cgi import print_arguments
 from src.MillerRabin import *
 from src.generatePrime import *
 
+LOWER_LIMIT=1000
+UPPER_LIMIT=10000
 
 def DHKey():
-    #Takes in the prime number used as the modulus
-    while(True):
-        p=int(input("Enter a publicly known value for a prime modulus"))
-        if(isPrime(p)):
-            break
-        else:
-            print("Please enter a PRIME")
+    #Generates a random prime for the diffie-hellman protocol
+    p=getPrime(LOWER_LIMIT,UPPER_LIMIT)
     
-    #Takes in a generator for the previously inputted prime
+    #Obtains a random generator for the prime generated above
     while(True):
-        g=int(input("Enter a publicly known generator"))
+        g=random.randint(1,p)
         if(generator(g,p)):
             break
-        else:
-            print("Please enter a valid generator")
     
-    #Takes in inputs for each party's secret number (the exponent)
-    a=int(input("Enter the secret number chosen by the first party."))
-    b=int(input("Enter the secret number chosen by the second party."))
+    #Printing out the prime and the generator (temporary)
+    print("Prime: ",p)
+    print("Generator: ",g)
+
+    #Randomly generates numbers for each party's secret number (the exponent)
+    a=random.randint(2,50)
+    b=random.randint(2,50)
 
     atob=modPower(g,a,p)
     btoa=modPower(g,b,p)
@@ -41,3 +41,12 @@ def DHKey():
     else:
         #Failed
         print("The keys are not equal")
+
+    return (key1,p)
+
+def encryptMessage(message,prime,key):
+    return (message+key)%prime
+
+def decryptMessage(message,prime,key):
+    return (message-key)%prime
+    
