@@ -1,50 +1,44 @@
 import socket
 import threading
-from contextlib import closing
-   
-def check_socket(host, port):
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
-        if sock.connect_ex((host, port)) == 0:
-            return 1
-        else:
-            return 0
 
 IP = socket.gethostbyname(socket.gethostname())
-PORT = 7777
-while True:
-    if(check_socket(IP,PORT)):
-        PORT+=1
-    else:
-        print(PORT)
-        break
+PORT = 5564
 ADDR = (IP, PORT)
+QUIT = "!quit"
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
 server.bind(ADDR)
 server.listen()
 
 clients = []
 names = []
-ids=[]
+login = {}
 
-def broadcast(msg):
-    for client in clients:
-        client.send(msg)
+def broadcast(msg, client):
+    for c in clients:
+        if c == client:
+            continue
+        c.send(f'{msg}'.encode('ascii'))
 
 def handle(client,addr):
     while True:
         try:
-            msg = client.recv(1024)
-            broadcast(msg)
+            msg = client.recv(2048).decode('ascii')
+            if msg.split(": ",1)[1] == QUIT:
+                index = clients.index(client)
+                clients.remove(client)
+                client.close()
+                broadcast(f"{names.pop(index)} left",None)
+                break    
+            else:
+                broadcast(msg,client)
         except:
             index = clients.index(client)
             clients.remove(client)
             client.close()
-            ids.pop(index)
             # name = names(index)
             # names.remove(name)
-            broadcast(f"{names.pop(index)} left".encode('ascii'))
+            broadcast(f"{names.pop(index)} left",None)
             break
 
 def receive():
@@ -52,21 +46,35 @@ def receive():
         client, addr = server.accept()
         print(f"{addr} connected")
 
-        client.send("Name".encode('ascii'))
+        client.send("entry_type".encode('ascii'))
+        entry = client.recv(1024).decode('ascii')
         name = client.recv(1024).decode('ascii')
-        names.append(name)
-        clients.append(client)
-        if(ids==[]):
-            client.send("ID: 0".encode('ascii'))
-            id = 0
+        password = client.recv(1024).decode('ascii')
+        print("Entry",entry)
+        if int(entry) == 2:
+            print("reached")
+            names.append(name)
+            login[name]=password
+            clients.append(client)
+            client.send("Successfully signed up!".encode('ascii'))
         else:
-            client.send(("ID: " + str(ids[-1]+1)).encode('ascii'))
-            id = ids[-1]+1
-        ids.append(id)
+            if name in names:
+                print(1)
+                if login[name] == password:
+                    index = names.index(name)
+                    clients[index] = client
+                    client.send("Logged In".encode('ascii'))
+                else:
+                    client.send("Incorrect Password".encode('ascii'))
+                    client.close()
+                    continue
+            else:
+                client.send("Username not found, please sign up!".encode('ascii'))
+                client.close()
+                continue
 
         print(f"Name of the client is {name}")
-        print(f"ID of the client is: {id}")
-        broadcast(f"{name} joined".encode('ascii'))
+        broadcast(f"{name} joined", None)
 
         thread = threading.Thread(target=handle, args=(client,addr))
         thread.start()

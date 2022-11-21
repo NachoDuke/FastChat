@@ -1,13 +1,19 @@
 import socket
 import threading
-import rsa
 
 IP = socket.gethostbyname(socket.gethostname())
-PORT = 7778
+PORT = 5564
 ADDR = (IP, PORT)
+QUIT = "!quit"
 
-name = input("Choose a name: ")
-id = 0
+while True:
+    entry = int(input("What do you want to do? \n1. Sign In \n2. Sign Up \n"))
+    if entry != 1 and entry != 2:
+        print("Invalid input, try again!")
+    else:
+        name = input("Enter username: ")
+        password = input("Enter password: ")
+        break
 
 client = socket.socket(socket.AF_INET,  socket.SOCK_STREAM)
 client.connect(ADDR)
@@ -15,24 +21,44 @@ client.connect(ADDR)
 def receive():
     while True:
         try:
-            msg = client.recv(1024).decode('ascii')
-            if msg == "Name":
+            msg = client.recv(2048).decode('ascii')
+            if msg == "entry_type":
+                client.send(str(entry).encode('ascii'))
                 client.send(name.encode('ascii'))
-            elif(msg[:4]=="ID: "):
-                id = msg[4:]
-                print(id)
+                client.send(password.encode('ascii'))
+                # return_msg = client.recv(1024).decode('ascii')
+                # print(return_msg)
+                # if return_msg == "Successfully signed up!":
+                #     pass
+                # elif return_msg == "Incorrect Password":
+                #     client.close()
+                # elif return_msg == "Username not found, please sign up!":
+                #     client.close()
             else:
                 print(msg)
-            
+                if msg == "Succesfully signed up!":
+                    pass
+                elif msg == "Incorrect Password":
+                    client.close()
+                    break
+                elif msg == "Username not found, please sign up!":
+                    client.close()
+                    break
         except:
-            print("Error!")
-            client.close()
-            break
+            if client.fileno() == -1:
+                break
+            else:
+                print("Error!")
+                client.close()
+                break
 
 def write():
     while True:
         msg = f'{name}: {input("")}'
         client.send(msg.encode('ascii'))
+        if msg.split(": ",1)[1] == QUIT:
+            client.close()
+            break
 
 receive_thread = threading.Thread(target=receive)
 receive_thread.start()
