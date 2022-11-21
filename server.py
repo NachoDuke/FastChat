@@ -2,7 +2,7 @@ import socket
 import threading
 
 IP = socket.gethostbyname(socket.gethostname())
-PORT = 5564
+PORT = 5569
 ADDR = (IP, PORT)
 QUIT = "!quit"
 
@@ -18,27 +18,28 @@ def broadcast(msg, client):
     for c in clients:
         if c == client:
             continue
-        c.send(f'{msg}'.encode('ascii'))
+        if c.fileno() != -1:
+            c.send(f'{msg}'.encode('ascii'))
 
 def handle(client,addr):
     while True:
         try:
             msg = client.recv(2048).decode('ascii')
             if msg.split(": ",1)[1] == QUIT:
-                index = clients.index(client)
-                clients.remove(client)
+                # index = clients.index(client)
+                # clients.remove(client)
                 client.close()
-                broadcast(f"{names.pop(index)} left",None)
+                broadcast(f"{names[index]} left",None)
                 break    
             else:
                 broadcast(msg,client)
         except:
             index = clients.index(client)
-            clients.remove(client)
+            # clients.remove(client)
             client.close()
             # name = names(index)
             # names.remove(name)
-            broadcast(f"{names.pop(index)} left",None)
+            broadcast(f"{names[index]} left",None)
             break
 
 def receive():
