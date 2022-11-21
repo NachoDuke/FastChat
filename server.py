@@ -1,18 +1,32 @@
 import socket
 import threading
+from contextlib import closing
+   
+def check_socket(host, port):
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
+        if sock.connect_ex((host, port)) == 0:
+            return 1
+        else:
+            return 0
 
 IP = socket.gethostbyname(socket.gethostname())
-PORT = 7778
+PORT = 7777
+while True:
+    if(check_socket(IP,PORT)):
+        PORT+=1
+    else:
+        print(PORT)
+        break
 ADDR = (IP, PORT)
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
 server.bind(ADDR)
 server.listen()
 
 clients = []
 names = []
 ids=[]
-keys=[]
 
 def broadcast(msg):
     for client in clients:
