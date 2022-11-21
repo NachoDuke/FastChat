@@ -2,7 +2,8 @@ import socket
 import threading
 
 IP = socket.gethostbyname(socket.gethostname())
-PORT = 5569
+with open("port.txt",'r') as f:
+    PORT = int(f.read())
 ADDR = (IP, PORT)
 QUIT = "!quit"
 

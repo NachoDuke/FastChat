@@ -2,12 +2,16 @@ import socket
 import threading
 
 IP = socket.gethostbyname(socket.gethostname())
-PORT = 5569
-ADDR = (IP, PORT)
+ADDR = (IP, 0)
 QUIT = "!quit"
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind(ADDR)
+PORT = server.getsockname()[1]
+
+with open("port.txt",'w') as f:
+    f.write(str(PORT))
+
 server.listen()
 
 clients = []
