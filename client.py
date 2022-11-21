@@ -1,5 +1,6 @@
 import socket
 import threading
+import sys
 
 IP = socket.gethostbyname(socket.gethostname())
 with open("port.txt",'r') as f:
@@ -41,9 +42,15 @@ def receive():
                     pass
                 elif msg == "Incorrect Password":
                     client.close()
+                    sys.exit(0)
                     break
                 elif msg == "Username not found, please sign up!":
                     client.close()
+                    sys.exit(0)
+                    break
+                elif msg == "You are logged in elsewhere":
+                    client.close()
+                    sys.exit(0)
                     break
         except:
             if client.fileno() == -1:

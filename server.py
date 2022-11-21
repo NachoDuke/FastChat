@@ -67,8 +67,13 @@ def receive():
                 print(1)
                 if login[name] == password:
                     index = names.index(name)
-                    clients[index] = client
-                    client.send("Logged In".encode('ascii'))
+                    if(clients[index].fileno()!=-1):
+                        client.send("You are logged in elsewhere".encode('ascii'))
+                        client.close()
+                        continue
+                    else:
+                        clients[index] = client
+                        client.send("Logged In".encode('ascii'))
                 else:
                     client.send("Incorrect Password".encode('ascii'))
                     client.close()
