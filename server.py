@@ -1,5 +1,6 @@
 import socket
 import threading
+import sys
 
 IP = socket.gethostbyname(socket.gethostname())
 ADDR = (IP, 0)
@@ -20,6 +21,7 @@ login = {}
 
 def broadcast(msg, client):
     for c in clients:
+        print("1")
         if c == client:
             continue
         if c.fileno() != -1:
@@ -29,7 +31,15 @@ def handle(client,addr):
     while True:
         try:
             msg = client.recv(2048).decode('ascii')
-            if msg.split(": ",1)[1] == QUIT:
+            print(msg[:14])
+            if msg[:14]=="query_username":
+                print(msg)
+                # print(5/0)
+                if(msg[14:] in names):
+                    client.send("correct".encode('ascii'))
+                else:
+                    client.send("incorrect".encode('ascii'))
+            elif msg.split(": ",1)[1] == QUIT:
                 # index = clients.index(client)
                 # clients.remove(client)
                 client.close()
@@ -37,7 +47,9 @@ def handle(client,addr):
                 break    
             else:
                 broadcast(msg,client)
+                
         except:
+            print("0")
             index = clients.index(client)
             # clients.remove(client)
             client.close()
