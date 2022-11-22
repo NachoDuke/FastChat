@@ -34,12 +34,16 @@ def handle(client,addr):
             print(msg[:14])
             if msg[:14]=="query_username":
                 # print(5/0)
+                time.sleep(1)
                 if(msg[14:] in names):
                     client.send("correct".encode('ascii'))
                     print("c")
                 else:
                     client.send("incorrect".encode('ascii'))
                     print("ic")
+            elif msg == "logged_out":
+                client.close()
+                break
             elif msg.split(": ",1)[1] == QUIT:
                 # index = clients.index(client)
                 # clients.remove(client)
@@ -61,44 +65,47 @@ def handle(client,addr):
 
 def receive():
     while True:
-        client, addr = server.accept()
-        print(f"{addr} connected")
+        try:
+            client, addr = server.accept()
+            print(f"{addr} connected")
 
-        client.send("entry_type".encode('ascii'))
-        entry = client.recv(1024).decode('ascii')
-        name = client.recv(1024).decode('ascii')
-        password = client.recv(1024).decode('ascii')
-        if int(entry) == 2:
-            names.append(name)
-            login[name]=password
-            clients.append(client)
-            client.send("Successfully signed up!".encode('ascii'))
-        else:
-            if name in names:
-                print(1)
-                if login[name] == password:
-                    index = names.index(name)
-                    if(clients[index].fileno()!=-1):
-                        client.send("You are logged in elsewhere".encode('ascii'))
+            client.send("entry_type".encode('ascii'))
+            entry = client.recv(1024).decode('ascii')
+            name = client.recv(1024).decode('ascii')
+            password = client.recv(1024).decode('ascii')
+            if int(entry) == 2:
+                names.append(name)
+                login[name]=password
+                clients.append(client)
+                client.send("Successfully signed up!".encode('ascii'))
+            else:
+                if name in names:
+                    print(1)
+                    if login[name] == password:
+                        index = names.index(name)
+                        if(clients[index].fileno()!=-1):
+                            client.send("You are logged in elsewhere".encode('ascii'))
+                            client.close()
+                            continue
+                        else:
+                            clients[index] = client
+                            client.send("Logged In".encode('ascii'))
+                    else:
+                        client.send("Incorrect Password".encode('ascii'))
                         client.close()
                         continue
-                    else:
-                        clients[index] = client
-                        client.send("Logged In".encode('ascii'))
                 else:
-                    client.send("Incorrect Password".encode('ascii'))
+                    client.send("Username not found, please sign up!".encode('ascii'))
                     client.close()
                     continue
-            else:
-                client.send("Username not found, please sign up!".encode('ascii'))
-                client.close()
-                continue
 
-        print(f"Name of the client is {name}")
-        broadcast(f"{name} joined", None)
+            print(f"Name of the client is {name}")
+            # broadcast(f"{name} joined", None)
 
-        thread = threading.Thread(target=handle, args=(client,addr))
-        thread.start()
+            thread = threading.Thread(target=handle, args=(client,addr))
+            thread.start()
+        except:
+            continue
 
 print(f"Server is listening..")
 receive()
