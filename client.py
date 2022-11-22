@@ -4,13 +4,15 @@ import sys
 import time
 
 IP = socket.gethostbyname(socket.gethostname())
-with open("port.txt",'r') as f:
+with open("dsPort.txt",'r') as f:
     PORT = int(f.read())
 ADDR = (IP, PORT)
 QUIT = "!quit"
 client = socket.socket(socket.AF_INET,  socket.SOCK_STREAM)
 client.connect(ADDR)
-DEAD
+serverPort = int(client.recv(2048).decode('ascii'))
+ADDR = (IP, serverPort)
+client.connect(ADDR)
 
 def receive():
     global DEAD
@@ -72,6 +74,7 @@ def DMchatRoom(username,name):
         client.send(msg.encode('ascii'))
 
 def login():
+    print("Ye")
     while True:
         entry = int(input("What do you want to do? \n1. Sign In \n2. Sign Up \n3. Quit\n"))
         print("Taken choice as: ",entry)
@@ -120,6 +123,7 @@ def login():
 
 
 while True:
+    print("Here")
     error_code,name = login()
     if error_code==0:
         sys.exit()
@@ -133,4 +137,3 @@ receive_thread.start()
 
 write_thread = threading.Thread(target=menu,args=(name,))
 write_thread.start()
-
