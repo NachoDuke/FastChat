@@ -29,23 +29,23 @@ def broadcast(msg, client):
         index = clients.index(c)
         if names[index] == receiverName:
             #ADD CODE TO CHECK IF USER IS ONLINE / OFFLINE
-            c.send(f'{messages[1]}'.encode('ascii'))
+            c.send(f'{messages[1]}'.encode())
         else:
             continue
 
 def handle(client,addr):
     while True:
         try:
-            msg = client.recv(2048).decode('ascii')
+            msg = client.recv(2048).decode()
             # print(msg[:14])
             if msg[:14]=="query_username":
                 # print(5/0)
                 # time.sleep(1)
                 if(msg[14:] in names):
-                    client.send("correct".encode('ascii'))
+                    client.send("correct".encode())
                     print("c")
                 else:
-                    client.send("incorrect".encode('ascii'))
+                    client.send("incorrect".encode())
                     print("ic")
             elif msg == "logged_out":
                 client.close()
@@ -76,38 +76,38 @@ def receive():
             client, addr = server.accept()
             print(f"{addr} connected")
 
-            client.send("entry_type".encode('ascii'))
-            entry = client.recv(1024).decode('ascii')
-            name = client.recv(1024).decode('ascii')
-            password = client.recv(1024).decode('ascii')
+            client.send("entry_type".encode())
+            entry = client.recv(1024).decode()
+            name = client.recv(1024).decode()
+            password = client.recv(1024).decode()
             if int(entry) == 2:
                 if name in names:
-                    client.send("Username by this account already exists, try signing in!".encode('ascii'))
+                    client.send("Username by this account already exists, try signing in!".encode())
                     client.close()
                     continue
                 else:
                     names.append(name)
                     login[name]=password
                     clients.append(client)
-                    client.send("Successfully signed up!".encode('ascii'))
+                    client.send("Successfully signed up!".encode())
             else:
                 if name in names:
                     print(1)
                     if login[name] == password:
                         index = names.index(name)
                         if(clients[index].fileno()!=-1):
-                            client.send("You are logged in elsewhere".encode('ascii'))
+                            client.send("You are logged in elsewhere".encode())
                             client.close()
                             continue
                         else:
                             clients[index] = client
-                            client.send("Logged In".encode('ascii'))
+                            client.send("Logged In".encode())
                     else:
-                        client.send("Incorrect Password".encode('ascii'))
+                        client.send("Incorrect Password".encode())
                         client.close()
                         continue
                 else:
-                    client.send("Username not found, please sign up!".encode('ascii'))
+                    client.send("Username not found, please sign up!".encode())
                     client.close()
                     continue
 

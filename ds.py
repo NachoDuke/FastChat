@@ -34,7 +34,7 @@ def receive():
         min = str(ports[(portMin(loads))])
         print(min)
         loads[portMin(loads)]+=1
-        client.send(min.encode('ascii'))
+        client.send(min.encode())
 
 if __name__=="__main__":
     IP = socket.gethostbyname(socket.gethostname())

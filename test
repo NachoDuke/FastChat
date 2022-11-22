@@ -3,7 +3,6 @@ import threading
 import sys
 import time
 import rsa
-import base64
 
 IP = socket.gethostbyname(socket.gethostname())
 with open("dsPort.txt",'r') as f:
@@ -12,28 +11,23 @@ ADDR = (IP, PORT)
 # QUIT = "!quit"
 client = socket.socket(socket.AF_INET,  socket.SOCK_STREAM)
 client.connect(ADDR)
-serverPort = int(client.recv(2048).decode())
+serverPort = int(client.recv(2048).decode('ascii'))
 ADDR = (IP, serverPort)
 
 
 def receive(client,name):
     while True:
         try:
-            a = client.recv(2048)
-            msg = a.decode()
+            msg = client.recv(2048).decode('ascii')
             if(msg ==  'correct' or msg == 'incorrect'):
                 break
             parts = msg.split(": ",1)
             fileName = "pkeys/"+name + "private.pem"
             with open(fileName,"rb") as f:
                 private = rsa.PrivateKey.load_pkcs1(f.read())
-            print("PRIVATE: ",private)
+            parts[1] = rsa.decrypt(parts[1],private).decode()
             print(parts[0],parts[1],sep=": ")
-            a = parts[1].encode()
-            clean = rsa.decrypt(a,private).decode()
-            print(clean)
-        except Exception as e:
-            print(e)
+        except:
             if client.fileno() == -1:
                 break
             else:
@@ -55,7 +49,7 @@ def menu(name,client):
             username = input("Enter the username with whom you wish to chat: ").strip()
             DMchatRoom(username,name,client)
         elif choice==3:
-            client.send('logged_out'.encode())
+            client.send('logged_out'.encode('ascii'))
             client.close()
             newUser()
             break
@@ -64,9 +58,9 @@ def menu(name,client):
 
 def DMchatRoom(username,name,client):
     while True:
-        client.send(f"query_username{username}".encode())
+        client.send(f"query_username{username}".encode('ascii'))
         # time.sleep(0.5)
-        msg = client.recv(1024).decode()
+        msg = client.recv(1024).decode('ascii')
         if msg == "correct" or "incorrect":
             break
     if(msg == "incorrect"):
@@ -80,23 +74,17 @@ def DMchatRoom(username,name,client):
             fileName = "pkeys/"+username + "public.pem"
             with open(fileName,"rb") as f:
                 public = rsa.PublicKey.load_pkcs1(f.read())
-            print("PUBLIC: ",public)
             usermsg = rsa.encrypt(usermsg.encode(),public)
-        # print(usermsg)
             usermsg = str(usermsg)
+        # print(usermsg)
         msg = f'{username}$-${name}: {usermsg}'
         # elif msg.split(": ",1)[1] == QUIT:
         #     client.close()
         #     return
         if msg.split(": ",1)[1]=="/quit":
-            client.send(msg.encode())
+            client.send(msg.encode('ascii'))
             return
-        print(msg)
-        fileName = "pkeys/"+username + "private.pem"
-        with open(fileName,"rb") as f:
-            pr = rsa.PrivateKey.load_pkcs1(f.read())
-        asdf  = rsa.decrypt(msg.encode(),pr).decode()
-        client.send(msg.encode())
+        client.send(msg.encode('ascii'))
 
 def login(client,name,password,entry):
     # while True:
@@ -116,21 +104,20 @@ def login(client,name,password,entry):
     #         break
 
     try:
-        msg = client.recv(2048).decode()
+        msg = client.recv(2048).decode('ascii')
         print(msg)
         print(str(entry))
         if msg == "entry_type":
-            client.send(str(entry).encode())
+            client.send(str(entry).encode('ascii'))
             time.sleep(0.05)
-            client.send(name.encode())
+            client.send(name.encode('ascii'))
             time.sleep(0.05)
-            client.send(password.encode())
-            msg2 = client.recv(1024).decode()
+            client.send(password.encode('ascii'))
+            msg2 = client.recv(1024).decode('ascii')
             print(msg2)
             if msg2 == "Successfully signed up!" or msg2 == "Logged In":
                 print("hello")
                 publicKey,privateKey = rsa.newkeys(1024)
-                
                 fileName = "pkeys/"+name + "private.pem"
                 with open(fileName,"wb") as f:
                     f.write(privateKey.save_pkcs1("PEM"))
@@ -192,3 +179,7 @@ def newUser():
     write_thread.start()
 
 newUser()
+
+
+
+
