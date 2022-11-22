@@ -1,0 +1,24 @@
+send messages to specific clients
+send messages between servers
+groups - create, join, send to 
+encryption and decryption
+bash file stuff
+database stuff
+secure log in information
+FIGURE OUT HOW TO STORE PRIVATE KEYS
+
+DATABASE:
+    store msgs when the target user is offline
+    store log in information
+    store public keys
+
+
+
+me aadish chaitanya
+
+me to aadish DM
+msg = 'aadish$-$prem:my name is prem'
+
+me to group named ssl
+msg1 = 'aadish$-$prem(ssl):my name is prem'
+msg2 = 'chaitanya$-$prem(ssl):my name is prem'

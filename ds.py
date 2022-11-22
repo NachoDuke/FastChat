@@ -6,9 +6,9 @@ import os
 
 #returns the port number with the least number of devices connected to it
 def portMin(loads):
-    minLoad = loads[0]
+    minLoad = 0
     for i in range(len(loads)):
-        if loads[i]<minLoad:
+        if loads[i]<loads[minLoad]:
             minLoad = i
     return minLoad
 

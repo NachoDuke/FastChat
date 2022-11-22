@@ -21,12 +21,15 @@ names = []
 login = {}
 
 def broadcast(msg, client):
+    messages=msg.split("$-$",1)
+    receiverName = messages[0]
     for c in clients:
-        print("1")
-        if c == client:
+        index = clients.index(c)
+        if names[index] == receiverName:
+            #ADD CODE TO CHECK IF USER IS ONLINE / OFFLINE
+            c.send(f'{messages[1]}'.encode('ascii'))
+        else:
             continue
-        if c.fileno() != -1:
-            c.send(f'{msg}'.encode('ascii'))
 
 def handle(client,addr):
     while True:
