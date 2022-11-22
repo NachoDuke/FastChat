@@ -2,6 +2,7 @@
 import socket
 import threading
 import time
+import os
 
 #returns the port number with the least number of devices connected to it
 def portMin(loads):
@@ -19,9 +20,9 @@ def receive():
     with open("port.txt",'r') as f:
         s = f.readlines()
         i=0
-        for server in s:
+        for serv in s:
             servers.append(i)
-            ports.append(int(server))
+            ports.append(int(serv))
             i+=1
     print(servers)
     print(ports)
@@ -31,9 +32,11 @@ def receive():
         print(f"{addr} connected")
         #find the minimum
         min = str(ports[(portMin(loads))])
+        print(min)
+        loads[portMin(loads)]+=1
         client.send(min.encode('ascii'))
 
-if _name=="main_":
+if __name__=="__main__":
     IP = socket.gethostbyname(socket.gethostname())
     ADDR = (IP, 0)
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

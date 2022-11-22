@@ -10,8 +10,9 @@ server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind(ADDR)
 PORT = server.getsockname()[1]
 
-with open("port.txt",'w') as f:
+with open("port.txt",'a') as f:
     f.write(str(PORT))
+    f.write('\n')
 
 server.listen()
 
