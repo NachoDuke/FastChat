@@ -19,6 +19,7 @@ server.listen()
 clients = []
 names = []
 login = {}
+groups = {}
 
 def broadcast(msg, client):
     print(msg)
@@ -32,6 +33,20 @@ def broadcast(msg, client):
             c.send(f'{messages[1]}'.encode())
         else:
             continue
+
+def broadcastGroup(msg,client):
+    print(msg)
+    messages=msg.split("$%$",1)
+    groupname = messages[0]
+    for user in groups[groupname]:
+        c = user[1]
+        if c == client:
+            pass
+        else:
+            c.send(f'{messages[1]}'.encode())
+
+
+
 
 def handle(client,addr):
     while True:
@@ -50,15 +65,43 @@ def handle(client,addr):
             elif msg == "logged_out":
                 client.close()
                 break
+            elif msg[:16] == "create_groupname":
+                if msg[16:] in groups.keys():
+                    client.send("group_present".encode())
+                else:
+                    index = clients.index(client)
+                    groups[msg[16:]] = [[names[index],client]]
+                    client.send("group_created".encode())
+            elif msg[:15] == "check_groupname":
+                if msg[15:] in groups.keys():
+                    client.send("group_present".encode())
+                else:
+                    client.send("no group".encode())
+            elif msg[:14] == "join_groupname":
+                if msg[14:]in groups.keys():
+                    index = clients.index(client)
+                    if([names[index],client] in groups[msg[14:]]):
+                        client.send("already".encode())
+                    else:
+                        groups[msg[14:]].append([names[index],client])
+                        client.send("success".encode())
+                else:
+                    client.send("No group".encode())
             elif msg.split(": ",1)[1] == "/quit":
                 print(msg.split(": ",1)[1] == "/quit")
                 # index = clients.index(client)
                 # clients.remove(client)
                 # client.close()
-                broadcast(f"{msg.split('$-$',1)[0]}$-${msg.split('$-$',1)[1].split(': ',1)[0]} left",None)
+                if "$-$" in msg:
+                    broadcast(f"{msg.split('$-$',1)[0]}$-${msg.split('$-$',1)[1].split(': ',1)[0]} left",None)
+                else:
+                    broadcastGroup(f"{msg.split('$%$',1)[0]}$%${msg.split('$%$',1)[1].split('(',1)[0]} left",None)
                 continue
             else:
-                broadcast(msg,client)
+                if("$-$" in msg):
+                    broadcast(msg,client)
+                else:
+                    broadcastGroup(msg,client)
                 
         except:
             print("0")

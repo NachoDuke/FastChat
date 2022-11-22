@@ -23,15 +23,16 @@ def receive(client,name):
             msg = a.decode()
             if(msg ==  'correct' or msg == 'incorrect'):
                 break
-            parts = msg.split(": ",1)
-            fileName = "pkeys/"+name + "private.pem"
-            with open(fileName,"rb") as f:
-                private = rsa.PrivateKey.load_pkcs1(f.read())
-            print("PRIVATE: ",private)
-            print(parts[0],parts[1],sep=": ")
-            a = parts[1].encode()
-            clean = rsa.decrypt(a,private).decode()
-            print(clean)
+            print(msg)
+            # parts = msg.split(": ",1)
+            # fileName = "pkeys/"+name + "private.pem"
+            # with open(fileName,"rb") as f:
+            #     private = rsa.PrivateKey.load_pkcs1(f.read())
+            # print("PRIVATE: ",private)
+            # print(parts[0],parts[1],sep=": ")
+            # a = parts[1].encode()
+            # clean = rsa.decrypt(a,private).decode()
+            # print(clean)
         except Exception as e:
             print(e)
             if client.fileno() == -1:
@@ -54,11 +55,52 @@ def menu(name,client):
         if(choice==1):
             username = input("Enter the username with whom you wish to chat: ").strip()
             DMchatRoom(username,name,client)
+        elif choice ==2:
+            groupname = input("Enter the group name: ").strip()
+            while True:
+                client.send(f"check_groupname{groupname}".encode())
+                msg = client.recv(1024).decode()
+                if msg == "group_present" or msg == "no group":
+                    break
+            if msg == "no group":
+                print("The given group does not exist!! Please try again.")
+                continue
+            else:
+                groupchat(groupname,name,client)
         elif choice==3:
             client.send('logged_out'.encode())
             client.close()
             newUser()
             break
+        elif choice == 4:
+            groupname = input("Enter the group name: ").strip()
+            while True:
+                client.send(f"create_groupname{groupname}".encode())
+                msg = client.recv(1024).decode()
+                if msg == "group_present" or msg == "group_created":
+                    break
+            if msg == "group_present":
+                print("A group by this name already exists, please try again")
+                continue
+            else:
+                print("Group successfully created!")
+                continue
+        elif choice == 5:
+            groupname = input("Enter the groupname: ").strip()
+            while True:
+                client.send(f"join_groupname{groupname}".encode())
+                msg = client.recv(1024).decode()
+                if msg == "success" or msg == "No group" or msg == "already":
+                    break
+            if msg == "No group":
+                print("There is no such group")
+                continue
+            elif msg == "already":
+                print("You are already a part of this group")
+                continue
+            else:
+                print("You have been added to the group")
+                continue
         else:
             print(choice)
 
@@ -76,14 +118,14 @@ def DMchatRoom(username,name,client):
     print()
     while True:
         usermsg = input().strip()
-        if usermsg != "/quit":
-            fileName = "pkeys/"+username + "public.pem"
-            with open(fileName,"rb") as f:
-                public = rsa.PublicKey.load_pkcs1(f.read())
-            print("PUBLIC: ",public)
-            usermsg = rsa.encrypt(usermsg.encode(),public)
-        # print(usermsg)
-            usermsg = str(usermsg)
+        # if usermsg != "/quit":
+        #     fileName = "pkeys/"+username + "public.pem"
+        #     with open(fileName,"rb") as f:
+        #         public = rsa.PublicKey.load_pkcs1(f.read())
+        #     print("PUBLIC: ",public)
+        #     usermsg = rsa.encrypt(usermsg.encode(),public)
+        # # print(usermsg)
+        #     usermsg = str(usermsg)
         msg = f'{username}$-${name}: {usermsg}'
         # elif msg.split(": ",1)[1] == QUIT:
         #     client.close()
@@ -91,11 +133,22 @@ def DMchatRoom(username,name,client):
         if msg.split(": ",1)[1]=="/quit":
             client.send(msg.encode())
             return
-        print(msg)
-        fileName = "pkeys/"+username + "private.pem"
-        with open(fileName,"rb") as f:
-            pr = rsa.PrivateKey.load_pkcs1(f.read())
-        asdf  = rsa.decrypt(msg.encode(),pr).decode()
+        # print(msg)
+        # fileName = "pkeys/"+username + "private.pem"
+        # with open(fileName,"rb") as f:
+        #     pr = rsa.PrivateKey.load_pkcs1(f.read())
+        # asdf  = rsa.decrypt(msg.encode(),pr).decode()
+        client.send(msg.encode())
+
+def groupchat(groupname,name,client):
+    print("Enter \'/quit\' to quit this room")
+    print()
+    while True:
+        usermsg = input().strip()
+        msg = f'{groupname}$%${name}({groupname}): {usermsg}'
+        if msg.split(": ",1)[1]=="/quit":
+            client.send(msg.encode())
+            return
         client.send(msg.encode())
 
 def login(client,name,password,entry):
