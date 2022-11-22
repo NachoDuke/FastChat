@@ -21,7 +21,9 @@ names = []
 login = {}
 
 def broadcast(msg, client):
+    print(msg)
     messages=msg.split("$-$",1)
+    print(messages)
     receiverName = messages[0]
     for c in clients:
         index = clients.index(c)
@@ -35,10 +37,10 @@ def handle(client,addr):
     while True:
         try:
             msg = client.recv(2048).decode('ascii')
-            print(msg[:14])
+            # print(msg[:14])
             if msg[:14]=="query_username":
                 # print(5/0)
-                time.sleep(1)
+                # time.sleep(1)
                 if(msg[14:] in names):
                     client.send("correct".encode('ascii'))
                     print("c")
@@ -48,12 +50,13 @@ def handle(client,addr):
             elif msg == "logged_out":
                 client.close()
                 break
-            elif msg.split(": ",1)[1] == QUIT:
+            elif msg.split(": ",1)[1] == "/quit":
+                print(msg.split(": ",1)[1] == "/quit")
                 # index = clients.index(client)
                 # clients.remove(client)
-                client.close()
-                broadcast(f"{names[index]} left",None)
-                break    
+                # client.close()
+                broadcast(f"{msg.split('$-$',1)[0]}$-${msg.split('$-$',1)[1].split(': ',1)[0]} left",None)
+                continue
             else:
                 broadcast(msg,client)
                 
@@ -64,7 +67,7 @@ def handle(client,addr):
             client.close()
             # name = names(index)
             # names.remove(name)
-            broadcast(f"{names[index]} left",None)
+            # broadcast(f"{names[index]} left",None)
             break
 
 def receive():
@@ -78,10 +81,15 @@ def receive():
             name = client.recv(1024).decode('ascii')
             password = client.recv(1024).decode('ascii')
             if int(entry) == 2:
-                names.append(name)
-                login[name]=password
-                clients.append(client)
-                client.send("Successfully signed up!".encode('ascii'))
+                if name in names:
+                    client.send("Username by this account already exists, try signing in!".encode('ascii'))
+                    client.close()
+                    continue
+                else:
+                    names.append(name)
+                    login[name]=password
+                    clients.append(client)
+                    client.send("Successfully signed up!".encode('ascii'))
             else:
                 if name in names:
                     print(1)
