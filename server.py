@@ -1,6 +1,5 @@
 import socket
 import threading
-import sys
 
 IP = socket.gethostbyname(socket.gethostname())
 ADDR = (IP, 0)
@@ -36,16 +35,8 @@ def handle(client,addr):
                 client.close()
                 broadcast(f"{names[index]} left",None)
                 break    
-            elif msg[:14]=="query_username":
-                print(msg)
-                print(5/0)
-                if(msg[14:] in names):
-                    client.send("correct".encode('ascii'))
-                else:
-                    client.send("incorrect".encode('ascii'))
             else:
                 broadcast(msg,client)
-                
         except:
             index = clients.index(client)
             # clients.remove(client)
