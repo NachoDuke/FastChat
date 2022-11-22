@@ -1,6 +1,6 @@
 import socket
 import threading
-import sys
+import time
 
 IP = socket.gethostbyname(socket.gethostname())
 ADDR = (IP, 0)
@@ -33,12 +33,13 @@ def handle(client,addr):
             msg = client.recv(2048).decode('ascii')
             print(msg[:14])
             if msg[:14]=="query_username":
-                print(msg)
                 # print(5/0)
                 if(msg[14:] in names):
                     client.send("correct".encode('ascii'))
+                    print("c")
                 else:
                     client.send("incorrect".encode('ascii'))
+                    print("ic")
             elif msg.split(": ",1)[1] == QUIT:
                 # index = clients.index(client)
                 # clients.remove(client)
@@ -67,9 +68,7 @@ def receive():
         entry = client.recv(1024).decode('ascii')
         name = client.recv(1024).decode('ascii')
         password = client.recv(1024).decode('ascii')
-        print("Entry",entry)
         if int(entry) == 2:
-            print("reached")
             names.append(name)
             login[name]=password
             clients.append(client)
