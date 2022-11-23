@@ -29,7 +29,7 @@ def broadcast(msg, client):
     receiverName = messages[0]
     for c in clients:
         index = clients.index(c)
-        if names[index] == receiverName:
+        if names[index] == receiverName and (active_chat[receiverName] == messages[1].split(": ")[0] or active_chat[receiverName] == messages[1].split(" ")[0]):
             #ADD CODE TO CHECK IF USER IS ONLINE / OFFLINE
             c.send(f'{messages[1]}'.encode())
         else:
@@ -43,7 +43,7 @@ def broadcastGroup(msg,client):
         c = user[1]
         if c == client:
             pass
-        else:
+        elif active_chat[user[0]] == groupname:
             c.send(f'{messages[1]}'.encode())
 
 
@@ -173,4 +173,3 @@ def receive():
 
 print(f"Server is listening..")
 receive()
-        
