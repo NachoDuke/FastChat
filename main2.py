@@ -7,7 +7,6 @@ conn = psycopg2.connect(
 )
 #Creating a cursor object using the cursor() method
 cursor = conn.cursor()
-
 #Executing an MYSQL function using the execute() method
 cursor.execute("select version()")
 

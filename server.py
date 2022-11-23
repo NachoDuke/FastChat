@@ -1,6 +1,7 @@
 import socket
 import threading
 import time
+import psycopg2
 
 IP = socket.gethostbyname(socket.gethostname())
 ADDR = (IP, 0)
@@ -66,6 +67,7 @@ def handle(client,addr):
                     client.send("incorrect".encode())
                     print("ic")
             elif msg == "logged_out":
+
                 client.close()
                 break
             elif msg[:16] == "create_groupname":
@@ -125,34 +127,71 @@ def receive():
         try:
             client, addr = server.accept()
             print(f"{addr} connected")
-
             client.send("entry_type".encode())
             entry = client.recv(1024).decode()
             name = client.recv(1024).decode()
             password = client.recv(1024).decode()
             if int(entry) == 2:
-                if name in names:
+                print("IDHER TOH AYEGA HI")
+                #if name in creds(USERNAME)
+                print(conn)
+                curr.execute('''
+                            SELECT USERNAME FROM CREDS WHERE USERNAME = '?'
+                            ''',(name,))
+                name_ = str(curr.fetchone()).strip()
+                if name == name_:
+                    print("KHO GAYE HUM KHA")
                     client.send("Username by this account already exists, try signing in!".encode())
                     client.close()
                     continue
                 else:
-                    names.append(name)
-                    login[name]=password
-                    clients.append(client)
-                    active_chat[name] = None
+                    print("SERVER YHAN AANA CHAHIYE")
+                    #change 0 to publickey
+                    print(name)
+                    print(password)
+                    curr.execute("INSERT INTO CREDS (USERNAME, PASSWORD, PUBLICKEY) VALUES (%s,%s,%s)",(str(name), str(password), 'None'))
+                    #names.append(name)
+                    #login[name]=password
+                    print("Chal rha")
+                    print(type(PORT))
+                    curr.execute("INSERT INTO SERVERS (USERNAME, PORTS, BUDDY) VALUES (%s,%s)",(str(name),int(PORT)))
+                    print("COMMIT KRNE JARHA******************")
+                    conn.commit()
+                    print("COMMIT KRDIYA************************")
+                    #clients.append(client)
+                    #active_chat[name] = None
                     client.send("Successfully signed up!".encode())
             else:
-                if name in names:
+                curr.execute('''
+                            SELECT USERNAME FROM CREDS WHERE USERNAME=?
+                            ''',(name,))
+                name_ = str(curr.fetchone())
+                name_ = name_.strip()
+                if name == name_:
                     print(1)
-                    if login[name] == password:
+                    curr.execute('''
+                            SELECT PASSWORD FROM CREDS WHERE USERNAME=?
+                            ''',(name,))
+                    pass_ = str(curr.fetchone())
+                    pass_ = pass_.strip()
+                    if pass_ == password:
+                        #if login[name] == password:
                         index = names.index(name)
-                        if(clients[index].fileno()!=-1):
+                        #Condition to check if you're logged in somewhere else
+                        curr.execute('''
+                            SELECT USERNAME FROM SERVER WHERE USERNAME=?
+                        ''',(name,))
+                        Name = str(curr.fetchone()).strip()
+                        if (Name==name):
+                        #if(clients[index].fileno()!=-1):
                             client.send("You are logged in elsewhere".encode())
                             client.close()
                             continue
                         else:
-                            clients[index] = client
-                            active_chat[name] = None
+                            curr.execute("INSERT INTO SERVERS(USERNAME, PORTS, PUBLICKEY) VALUES (?,?,?)",(name, PORT, ""))
+                            conn.commit()
+                            #clients[index] = client
+                            #active_chat[name] = None
                             client.send("Logged In".encode())
                     else:
                         client.send("Incorrect Password".encode())
@@ -172,4 +211,11 @@ def receive():
             continue
 
 print(f"Server is listening..")
+
+conn = psycopg2.connect(
+   database="postgres", user='postgres', password='password', host='127.0.0.1', port= '5432'
+)
+
+curr = conn.cursor()
+
 receive()
