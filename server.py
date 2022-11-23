@@ -135,7 +135,7 @@ def receive():
                 print("IDHER TOH AYEGA HI")
                 #if name in creds(USERNAME)
                 print(conn)
-                curr.execute("SELECT USERNAME FROM CREDS WHERE USERNAME = ?",(name,))
+                curr.execute("SELECT USERNAME FROM CREDS WHERE USERNAME = '?'",(name,))
                 name_ = str(curr.fetchone()).strip()
                 if name == name_:
                     print("KHO GAYE HUM KHA")
