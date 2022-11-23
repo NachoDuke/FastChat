@@ -20,6 +20,7 @@ clients = []
 names = []
 login = {}
 groups = {}
+active_chat = {}
 
 def broadcast(msg, client):
     print(msg)
@@ -57,6 +58,8 @@ def handle(client,addr):
                 # print(5/0)
                 # time.sleep(1)
                 if(msg[14:] in names):
+                    index = clients.index(client)
+                    active_chat[names[index]] = msg[14:]
                     client.send("correct".encode())
                     print("c")
                 else:
@@ -74,6 +77,8 @@ def handle(client,addr):
                     client.send("group_created".encode())
             elif msg[:15] == "check_groupname":
                 if msg[15:] in groups.keys():
+                    index = clients.index(client)
+                    active_chat[names[index]] = msg[15:]
                     client.send("group_present".encode())
                 else:
                     client.send("no group".encode())
@@ -92,6 +97,8 @@ def handle(client,addr):
                 # index = clients.index(client)
                 # clients.remove(client)
                 # client.close()
+                index = clients.index(client)
+                active_chat[names[index]] = None
                 if "$-$" in msg:
                     broadcast(f"{msg.split('$-$',1)[0]}$-${msg.split('$-$',1)[1].split(': ',1)[0]} left",None)
                 else:
@@ -132,6 +139,7 @@ def receive():
                     names.append(name)
                     login[name]=password
                     clients.append(client)
+                    active_chat[name] = None
                     client.send("Successfully signed up!".encode())
             else:
                 if name in names:
@@ -144,6 +152,7 @@ def receive():
                             continue
                         else:
                             clients[index] = client
+                            active_chat[name] = None
                             client.send("Logged In".encode())
                     else:
                         client.send("Incorrect Password".encode())
