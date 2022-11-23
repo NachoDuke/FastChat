@@ -15,7 +15,6 @@ client.connect(ADDR)
 serverPort = int(client.recv(2048).decode())
 ADDR = (IP, serverPort)
 
-
 def receive(client,name):
     while True:
         try:
@@ -23,16 +22,18 @@ def receive(client,name):
             msg = a.decode()
             if(msg ==  'correct' or msg == 'incorrect'):
                 break
-            print(msg)
-            # parts = msg.split(": ",1)
-            # fileName = "pkeys/"+name + "private.pem"
-            # with open(fileName,"rb") as f:
-            #     private = rsa.PrivateKey.load_pkcs1(f.read())
-            # print("PRIVATE: ",private)
-            # print(parts[0],parts[1],sep=": ")
-            # a = parts[1].encode()
-            # clean = rsa.decrypt(a,private).decode()
-            # print(clean)
+            fileName = "pkeys/"+name + "private.pem"
+            with open(fileName,"rb") as f:
+                private = rsa.PrivateKey.load_pkcs1(f.read())
+                # pr = base64.b64encode(pr)
+            if ":" in msg:
+                asdf = msg.split(": ",1)[1]
+                asdf = asdf[2:-1]
+                asdf = asdf.encode().decode('unicode_escape').encode('raw_unicode_escape')
+                asdf  = base64.b64decode(rsa.decrypt(asdf,private)).decode()
+                print(msg.split(": ",1)[0]+": "+asdf)
+            else:
+                print(msg)
         except Exception as e:
             print(e)
             if client.fileno() == -1:
@@ -118,26 +119,16 @@ def DMchatRoom(username,name,client):
     print()
     while True:
         usermsg = input().strip()
-        # if usermsg != "/quit":
-        #     fileName = "pkeys/"+username + "public.pem"
-        #     with open(fileName,"rb") as f:
-        #         public = rsa.PublicKey.load_pkcs1(f.read())
-        #     print("PUBLIC: ",public)
-        #     usermsg = rsa.encrypt(usermsg.encode(),public)
-        # # print(usermsg)
-        #     usermsg = str(usermsg)
+        if usermsg != "/quit":
+            fileName = "pkeys/"+username + "public.pem"
+            with open(fileName,"rb") as f:
+                public = rsa.PublicKey.load_pkcs1(f.read())
+            usermsg = rsa.encrypt(base64.b64encode(usermsg.encode()),public)
+            usermsg = str(usermsg)
         msg = f'{username}$-${name}: {usermsg}'
-        # elif msg.split(": ",1)[1] == QUIT:
-        #     client.close()
-        #     return
         if msg.split(": ",1)[1]=="/quit":
             client.send(msg.encode())
             return
-        # print(msg)
-        # fileName = "pkeys/"+username + "private.pem"
-        # with open(fileName,"rb") as f:
-        #     pr = rsa.PrivateKey.load_pkcs1(f.read())
-        # asdf  = rsa.decrypt(msg.encode(),pr).decode()
         client.send(msg.encode())
 
 def groupchat(groupname,name,client):

@@ -135,9 +135,7 @@ def receive():
                 print("IDHER TOH AYEGA HI")
                 #if name in creds(USERNAME)
                 print(conn)
-                curr.execute('''
-                            SELECT USERNAME FROM CREDS WHERE USERNAME = '?'
-                            ''',(name,))
+                curr.execute("SELECT USERNAME FROM CREDS WHERE USERNAME = ?",(name,))
                 name_ = str(curr.fetchone()).strip()
                 if name == name_:
                     print("KHO GAYE HUM KHA")
@@ -154,7 +152,7 @@ def receive():
                     #login[name]=password
                     print("Chal rha")
                     print(type(PORT))
-                    curr.execute("INSERT INTO SERVERS (USERNAME, PORTS, BUDDY) VALUES (%s,%s)",(str(name),int(PORT)))
+                    curr.execute("INSERT INTO SERVERS (USERNAME, PORTS) VALUES (%s,%s)",(str(name),int(PORT)))
                     print("COMMIT KRNE JARHA******************")
                     conn.commit()
                     print("COMMIT KRDIYA************************")
@@ -162,25 +160,19 @@ def receive():
                     #active_chat[name] = None
                     client.send("Successfully signed up!".encode())
             else:
-                curr.execute('''
-                            SELECT USERNAME FROM CREDS WHERE USERNAME=?
-                            ''',(name,))
+                curr.execute("SELECT USERNAME FROM CREDS WHERE USERNAME=?",(name,))
                 name_ = str(curr.fetchone())
                 name_ = name_.strip()
                 if name == name_:
                     print(1)
-                    curr.execute('''
-                            SELECT PASSWORD FROM CREDS WHERE USERNAME=?
-                            ''',(name,))
+                    curr.execute("SELECT PASSWORD FROM CREDS WHERE USERNAME=?",(name,))
                     pass_ = str(curr.fetchone())
                     pass_ = pass_.strip()
                     if pass_ == password:
                         #if login[name] == password:
                         index = names.index(name)
                         #Condition to check if you're logged in somewhere else
-                        curr.execute('''
-                            SELECT USERNAME FROM SERVER WHERE USERNAME=?
-                        ''',(name,))
+                        curr.execute("SELECT USERNAME FROM SERVER WHERE USERNAME=?",(name,))
                         Name = str(curr.fetchone()).strip()
                         if (Name==name):
                         #if(clients[index].fileno()!=-1):
@@ -188,7 +180,7 @@ def receive():
                             client.close()
                             continue
                         else:
-                            curr.execute("INSERT INTO SERVERS(USERNAME, PORTS, PUBLICKEY) VALUES (?,?,?)",(name, PORT, ""))
+                            curr.execute("INSERT INTO SERVERS(USERNAME, PORTS) VALUES (%s,%s,%s)",(name, PORT))
                             conn.commit()
                             #clients[index] = client
                             #active_chat[name] = None
