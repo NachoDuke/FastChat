@@ -29,7 +29,7 @@ def receive(client,name):
                 continue
             if(msg == "%$#quitReceive"):
                 return
-            fileName = "pkeys/"+name + "private.pem"
+            fileName = "pkeys/"+name+"/"+name+"private.pem"
             with open(fileName,"rb") as f:
                 private = rsa.PrivateKey.load_pkcs1(f.read())
                 # pr = base64.b64encode(pr)
@@ -50,7 +50,7 @@ def receive(client,name):
                 client.close()
                 break
 
-def receiveGroup(client,name):
+def receiveGroup(client,name,groupname):
     # print("Inside recieve function")
     while True:
         try:
@@ -60,7 +60,17 @@ def receiveGroup(client,name):
             # print(msg)
             if(msg == "%$#quitReceive"):
                 return
-            print(msg)
+            fileName = "pkeys/"+name+"/"+groupname+"private.pem"
+            with open(fileName,"rb") as f:
+                private = rsa.PrivateKey.load_pkcs1(f.read())
+            if ":" in msg:
+                asdf = msg.split(": ",1)[1]
+                asdf = asdf[2:-1]
+                asdf = asdf.encode().decode('unicode_escape').encode('raw_unicode_escape')
+                asdf  = base64.b64decode(rsa.decrypt(asdf,private)).decode()
+                print(msg.split(": ",1)[0]+": "+asdf)
+            else:
+                print(msg)
         except Exception as e:
             print(e)
             if client.fileno() == -1:
@@ -79,6 +89,7 @@ def menu(name,client):
         print("Log out - 3")
         print("Create a group - 4")
         print("Join a group - 5")
+        print("View pending messages - 6")
         choice = int(input("Enter your choice:- ").strip())
         if(choice==1):
             username = input("Enter the username with whom you wish to chat: ").strip()
@@ -118,11 +129,10 @@ def menu(name,client):
                 print("You are not a part of this Group, please join first.")
                 continue
             else:
-
-                receive_thread = threading.Thread(target=receiveGroup,args=(client,name))
+                receive_thread = threading.Thread(target=receiveGroup,args=(client,name,groupname))
                 receive_thread.start()
 
-                write_thread = threading.Thread(target=groupchat,args=(groupname,name,client))
+                write_thread = threading.Thread(target=groupchat,args=(groupname,name,client,msg))
                 write_thread.start()
 
                 while True:
@@ -133,6 +143,7 @@ def menu(name,client):
             client.send('logged_out'.encode())
             client.close()
             return
+        
         elif choice == 4:
             groupname = input("Enter the group name: ").strip()
             grouppass = input("Enter the goup password: ").strip()
@@ -148,7 +159,21 @@ def menu(name,client):
                 continue
             else:
                 print("Group successfully created!")
+                publicKey,privateKey = rsa.newkeys(1024)
+                fileName = "pkeys/"+name+"/"+groupname+"private.pem"
+                with open(fileName,"wb") as f:
+                    f.write(privateKey.save_pkcs1("PEM"))
+
+                fileName = "pkeys/"+name+"/"+groupname + "public.pem"
+                with open(fileName,"wb") as f:
+                    f.write(publicKey.save_pkcs1("PEM"))
+
+                keyPublic = str(pem.parse_file(fileName)[0])
+                client.send(f"{keyPublic}".encode())
+                os.remove(fileName)
+
                 continue
+        
         elif choice == 5:
             groupname = input("Enter the groupname: ").strip()
             password = input("Enter the password: ").strip()
@@ -167,10 +192,57 @@ def menu(name,client):
                 print("Incorrect password, please try again!")
                 continue
             else:
+                privateKey = client.recv(1024).decode()
+                fileName = "pkeys/"+name+"/"+groupname+"private.pem"
+                with open(fileName,'w') as f:
+                    f.write(privateKey) 
                 print("You have been added to the group")
                 continue
+        
+        elif choice == 6:
+            client.send(("queryPending"+name).encode())
+            msg = client.recv(1024).decode()
+            if(msg == "no_message"):
+                print("You have no pending messages from anyone!!!")
+                continue
+            else:
+                try:
+                    msg = msg[:-1]
+                    senders = msg.split("$")
+                    print("You have pending messages from the following groups/users:")
+                    senderNo = 1
+                    for sender in senders:
+                        print(str(senderNo)+ ". "+sender)
+                        senderNo=senderNo+1
+                    choice = int(input("Choose a number from the above to view:"))
+                    if(choice<=len(senders) and choice>0):
+                        client.send(senders[choice-1].encode())
+                        while True:
+                            msg = client.recv(1024).decode()
+                            if(msg == "DONE"):
+                                break
+                            else:
+                                fileName = "pkeys/"+name+"/"+name+"private.pem"
+                                with open(fileName,"rb") as f:
+                                    private = rsa.PrivateKey.load_pkcs1(f.read())
+                                    # pr = base64.b64encode(pr)
+                                if ":" in msg:
+                                    asdf = msg.split(": ",1)[1]
+                                    # print(asdf)
+                                    asdf = asdf[2:-1]
+                                    asdf = asdf.encode().decode('unicode_escape').encode('raw_unicode_escape')
+                                    asdf  = base64.b64decode(rsa.decrypt(asdf,private)).decode()
+                                    print(msg.split(": ",1)[0]+": "+asdf)
+                                else:
+                                    print(msg)
+                    else:
+                        print("Invalid Choice")
+                        continue
+                except Exception as e:
+                    print(e)
+                
         else:
-            print(choice)
+            print("Please enter a valid choice!!!")
 
 def DMchatRoom(username,name,client,keyPublic):
     print("Enter \'/quit\' to quit this room")
@@ -179,7 +251,7 @@ def DMchatRoom(username,name,client,keyPublic):
         usermsg = input().strip()
         if usermsg != "/quit":
 
-            fileName = "pkeys/"+username + "public.pem"
+            fileName = "pkeys/"+username+"/"+username + "public.pem"
             with open(fileName,"w") as f:
                 f.write(keyPublic)
             with open(fileName,"rb") as f:
@@ -194,15 +266,25 @@ def DMchatRoom(username,name,client,keyPublic):
             return
         client.send(msg.encode())
 
-def groupchat(groupname,name,client):
+def groupchat(groupname,name,client,keyPublic):
     print("Enter \'/quit\' to quit this room")
     print()
     while True:
         usermsg = input().strip()
-        msg = f'{groupname}$%${name}({groupname}): {usermsg}'
-        if msg.split(": ",1)[1]=="/quit":
+        if usermsg == "/quit":
+            msg = f'{groupname}$%${name}({groupname}): {usermsg}'
             client.send(msg.encode())
             return
+
+        fileName = "pkeys/"+name+"/"+groupname + "public.pem"
+        with open(fileName,"w") as f:
+            f.write(keyPublic)
+        with open(fileName,"rb") as f:
+            public = rsa.PublicKey.load_pkcs1(f.read())
+        os.remove(fileName)
+        usermsg = rsa.encrypt(base64.b64encode(usermsg.encode()),public)
+        usermsg = str(usermsg)
+        msg = f'{groupname}$%${name}({groupname}): {usermsg}'
         client.send(msg.encode())
 
 def login(client,name,password,entry):
@@ -220,20 +302,22 @@ def login(client,name,password,entry):
             msg2 = client.recv(1024).decode()
             print(msg2)
             if msg2 == "Successfully signed up!" or msg2 == "Logged In":
-                print("hello")
-                publicKey,privateKey = rsa.newkeys(1024)
-                
-                fileName = "pkeys/"+name + "private.pem"
-                with open(fileName,"wb") as f:
-                    f.write(privateKey.save_pkcs1("PEM"))
-                fileName = "pkeys/"+name + "public.pem"
-                with open(fileName,"wb") as f:
-                    f.write(publicKey.save_pkcs1("PEM"))
+                if msg2 == "Successfully signed up!":
+                    os.mkdir("pkeys//"+name)
+                    # print("hello")
+                    publicKey,privateKey = rsa.newkeys(1024)
+                    
+                    fileName = "pkeys/"+name+"/"+name + "private.pem"
+                    with open(fileName,"wb") as f:
+                        f.write(privateKey.save_pkcs1("PEM"))
+                    fileName = "pkeys/"+name+"/"+name + "public.pem"
+                    with open(fileName,"wb") as f:
+                        f.write(publicKey.save_pkcs1("PEM"))
 
-                keyPublic = str(pem.parse_file(fileName)[0])
-                client.send(f"{keyPublic}".encode())
+                    keyPublic = str(pem.parse_file(fileName)[0])
+                    client.send(f"{keyPublic}".encode())
 
-                os.remove(fileName)
+                    os.remove(fileName)
 
                 # rsa.PublicKey.
                 return (1,name)
@@ -248,13 +332,14 @@ def login(client,name,password,entry):
                 return (5,name)
         else:
             pass
-    except:
-            if client.fileno() == -1:
-                return (0,name)
-            else:
-                print("Error!")
-                client.close()
-                return (0,name)
+    except Exception as e:
+        print(e)
+        if client.fileno() == -1:
+            return (0,name)
+        else:
+            print("Error!")
+            client.close()
+            return (0,name)
 
 def newUser():
     while True:

@@ -1,11 +1,3 @@
-encryption and decryption groups
-images
-retrieve msgs from DB in real time and for pending msgs
+ - - - images
+ - - - retrieve msgs from DB in real time 
 secure log in information
-FIGURE OUT HOW TO STORE PRIVATE KEYS
-
-DATABASE:
-    delete ports when client quits
-    ---  store clients with ports
-    ---  store log in credentials
-    store groups

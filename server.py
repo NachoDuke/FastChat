@@ -3,6 +3,7 @@ import threading
 import time
 import psycopg2
 import datetime
+import pem
 
 IP = socket.gethostbyname(socket.gethostname())
 ADDR = (IP, 0)
@@ -42,7 +43,8 @@ def broadcast(msg, client):
                 if ":" in messages[1]:
                     sendersName = messages[1].split(": ")[0]    
                 else:
-                    sendersName = messages[1].split(" ")[0]
+                    continue
+                    # sendersName = messages[1].split(" ")[0]
                 # print("SENDER",sendersName)
 
                 x = datetime.datetime.now().strftime("%X")
@@ -59,7 +61,8 @@ def broadcast(msg, client):
                 if ":" in messages[1]:
                     sendersName = messages[1].split(": ")[0]    
                 else:
-                    sendersName = messages[1].split(" ")[0]
+                    continue
+                    # sendersName = messages[1].split(" ")[0]
                 # print("SENDER",sendersName)
 
                 x = datetime.datetime.now().strftime("%X")
@@ -71,7 +74,8 @@ def broadcast(msg, client):
         if ":" in messages[1]:
             sendersName = messages[1].split(": ")[0]
         else:
-            sendersName = messages[1].split(" ")[0]
+            return
+            # sendersName = messages[1].split(" ")[0]
         x = datetime.datetime.now().strftime("%X")
         curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,receiverName,x))
         conn.commit()
@@ -94,7 +98,8 @@ def broadcastGroup(msg,client):
             if len(buddy) == 0:
                 #add to database
                 if ":" in messages[1]:
-                    sendersName = messages[1].split(": ")[0]    
+                    sendersName = messages[1].split(": ")[0]   
+                    sendersName = sendersName.split("(")[1][:-1] 
                 else:
                     continue
                     # sendersName = messages[1].split(" ")[0]
@@ -133,11 +138,16 @@ def broadcastGroup(msg,client):
             conn.commit()
             continue
 
+def broadcastPending(msg,client):
+    print(msg)
+    client.send(f'{msg}'.encode())
+    time.sleep(0.05) 
+
 def handle(client,addr):
     while True:
         try:
             msg = client.recv(2048).decode()
-            # print(msg[:14])
+            print(msg)
             if msg[:14]=="query_username":
                 # print(5/0)
                 # time.sleep(1)
@@ -157,12 +167,14 @@ def handle(client,addr):
                 else:
                     client.send("incorrect".encode())  
                     print("ic")
+            
             elif msg == "logged_out":
                 index = clients.index(client)
                 curr.execute("DELETE FROM SERVERS WHERE USERNAME = %s",(names[index]))
                 client.close()
                 conn.commit()
                 break
+            
             elif msg[:16] == "create_groupname":
                 groupinfo = msg[16:].split("$")
                 groupname = groupinfo[0]
@@ -172,10 +184,12 @@ def handle(client,addr):
                 if len(l)!=0:
                     client.send("group_present".encode())
                 else:
-                    index = clients.index(client)
-                    curr.execute("INSERT INTO GPS (GROUPNAME,USERNAME,PASSWORD,ISADMIN) VALUES (%s,%s,%s,%s)",(groupname,names[index],grouppass,1))
-                    conn.commit()
                     client.send("group_created".encode())
+                    pkey = client.recv(1024).decode()
+                    index = clients.index(client)
+                    curr.execute("INSERT INTO GPS (GROUPNAME,USERNAME,PASSWORD,ISADMIN,PUBLICKEY) VALUES (%s,%s,%s,%s,%s)",(groupname,names[index],grouppass,1,pkey))
+                    conn.commit()
+            
             elif msg[:15] == "check_groupname":
                 groupname = msg[15:]
                 curr.execute("SELECT GROUPNAME FROM GPS WHERE GROUPNAME = %s",(groupname,))
@@ -191,12 +205,16 @@ def handle(client,addr):
                             curr.execute("INSERT INTO CHATROOMS (USERNAME, BUDDY) VALUES (%s,%s)",(names[index],groupname))
                             conn.commit()
                             # print("hii")
-                            client.send("group_present".encode())
+                            curr.execute("SELECT PUBLICKEY FROM GPS WHERE GROUPNAME = %s AND ISADMIN = 1",(groupname,))
+                            l = curr.fetchall()
+                            pubkey = l[0][0]
+                            client.send(pubkey.encode())
                     except Exception as e:
                         print(e)
                         client.send('group_present')
                 else:
                     client.send("no group".encode())
+            
             elif msg[:14] == "join_groupname":
                 groupinfo = msg[14:].split("$")
                 groupname = groupinfo[0]
@@ -213,12 +231,43 @@ def handle(client,addr):
                         if len(l)!=0:
                             client.send("already".encode())
                         else:
-                            # groups[msg[14:]].append([names[index],client])
+                            client.send("success".encode())
+                            curr.execute("SELECT USERNAME FROM GPS WHERE ISADMIN = 1 AND GROUPNAME = %s",(groupname,))
+                            l = curr.fetchall()
+                            admin = l[0][0]
+                            fileName = "pkeys/"+admin+"/"+groupname+"private.pem"
+                            privKey = str(pem.parse_file(fileName)[0])
+                            client.send(privKey.encode())
                             curr.execute("INSERT INTO GPS (GROUPNAME,USERNAME,PASSWORD,ISADMIN) VALUES (%s,%s,%s,%s)",(groupname,names[index],grouppass,0))
                             conn.commit()
-                            client.send("success".encode())
                 else:
                     client.send("No group".encode())
+            
+            elif msg[:12] == "queryPending":
+                name = msg[12:]
+                print(name)
+                curr.execute("SELECT DISTINCT SENDER FROM MESSAGES WHERE RECEIVER = %s",(name,))
+                senders = curr.fetchall()
+                print(senders)
+                if(len(senders) == 0):
+                    client.send("no_message".encode())
+                    continue
+                senderMsg = ""
+                for sender in senders:
+                    senderMsg += sender[0]+"$"
+                print(senderMsg)
+                client.send(senderMsg.encode())
+                msg = client.recv(1024).decode()
+                curr.execute("SELECT CONTENT FROM MESSAGES WHERE SENDER = %s AND RECEIVER = %s ORDER BY TIME",(msg,name))
+                msgs = curr.fetchall()
+                curr.execute("DELETE FROM MESSAGES WHERE SENDER = %s AND RECEIVER = %s",(msg,name))
+                conn.commit()
+                for msgTuple in msgs:
+                    msg = msgTuple[0]
+                    broadcastPending(msg,client)
+                time.sleep(0.05)
+                client.send("DONE".encode())
+
             elif msg.split(": ",1)[1] == "/quit":
                 # print(msg.split(": ",1)[1] == "/quit")
                 # index = clients.index(client)
@@ -233,6 +282,7 @@ def handle(client,addr):
                     broadcastGroup(f"{msg.split('$%$',1)[0]}$%${msg.split('$%$',1)[1].split('(',1)[0]} left",None)
                     client.send("%$#quitReceive".encode())
                 continue
+            
             else:
                 if("$-$" in msg):
                     broadcast(msg,client)
@@ -240,7 +290,7 @@ def handle(client,addr):
                     broadcastGroup(msg,client)
                 
         except Exception as e:
-            print(e)
+            print(f"{e}........")
             index = clients.index(client)
             # clients.remove(client)
             client.close()
