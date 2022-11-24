@@ -20,6 +20,7 @@ def receive(client,name):
         try:
             a = client.recv(2048)
             msg = a.decode()
+            # print(msg)
             if(msg ==  'correct' or msg == 'incorrect'):
                 break
             fileName = "pkeys/"+name + "private.pem"
@@ -106,12 +107,17 @@ def menu(name,client):
             print(choice)
 
 def DMchatRoom(username,name,client):
+    client.send(f"query_username{username}".encode())
+    # time.sleep(3)
     while True:
-        client.send(f"query_username{username}".encode())
-        # time.sleep(0.5)
-        msg = client.recv(1024).decode()
-        if msg == "correct" or "incorrect":
-            break
+        try:
+            msg = client.recv(1024).decode()
+            print(msg," ")
+            if msg != "":
+                break
+        except Exception as e:
+            print(e)
+            continue
     if(msg == "incorrect"):
         print("The entered username does not exist")
         return
@@ -161,8 +167,8 @@ def login(client,name,password,entry):
 
     try:
         msg = client.recv(2048).decode()
-        print(msg)
-        print(str(entry))
+        # print(msg)
+        # print(str(entry))
         if msg == "entry_type":
             client.send(str(entry).encode())
             time.sleep(0.05)
@@ -193,7 +199,7 @@ def login(client,name,password,entry):
             elif msg2 == "Username by this account already exists, try signing in!":
                 return (5,name)
         else:
-            print("wodfb")
+            pass
     except:
             if client.fileno() == -1:
                 return (0,name)
