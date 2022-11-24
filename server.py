@@ -2,6 +2,7 @@ import socket
 import threading
 import time
 import psycopg2
+import datetime
 
 IP = socket.gethostbyname(socket.gethostname())
 ADDR = (IP, 0)
@@ -37,18 +38,43 @@ def broadcast(msg, client):
             l = curr.fetchall()
             print(l)
             if len(l)==0:
+                #add to the database
+                if ":" in messages[1]:
+                    sendersName = messages[1].split(": ")[0]    
+                else:
+                    sendersName = messages[1].split(" ")[0]
+                # print("SENDER",sendersName)
+
+                x = datetime.datetime.now().strftime("%X")
+                curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,receiverName,x))
+                conn.commit()
                 continue
             print(f'--- {l[0][0]}') 
             if l[0][0] == messages[1].split(": ")[0] or l[0][0] == messages[1].split(" ")[0]:
                 print("REACHED")
                 print(messages[1])
-                c.send(f'{messages[1]}'.encode())   
+                c.send(f'{messages[1]}'.encode()) 
             else:
                 #add to the database
-                pass
+                if ":" in messages[1]:
+                    sendersName = messages[1].split(": ")[0]    
+                else:
+                    sendersName = messages[1].split(" ")[0]
+                # print("SENDER",sendersName)
+
+                x = datetime.datetime.now().strftime("%X")
+                curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,receiverName,x))
+                conn.commit()
+                continue
     if not sameServer:
         #add to database
-        pass
+        if ":" in messages[1]:
+            sendersName = messages[1].split(": ")[0]
+        else:
+            sendersName = messages[1].split(" ")[0]
+        x = datetime.datetime.now().strftime("%X")
+        curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,receiverName,x))
+        conn.commit()
 
 def broadcastGroup(msg,client):
     print(msg)
@@ -63,19 +89,49 @@ def broadcastGroup(msg,client):
             curr.execute("SELECT BUDDY FROM CHATROOMS WHERE USERNAME = %s",(user[0]))
             buddy = curr.fetchall()
             print(buddy)
+            if c == client:
+                continue
             if len(buddy) == 0:
                 #add to database
-                continue
-            if c == client:
+                if ":" in messages[1]:
+                    sendersName = messages[1].split(": ")[0]    
+                else:
+                    continue
+                    # sendersName = messages[1].split(" ")[0]
+                # print("SENDER",sendersName)
+
+                x = datetime.datetime.now().strftime("%X")
+                curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,user[0],x))
+                conn.commit()
                 continue
             if buddy[0][0] == groupname:
                 c.send(f'{messages[1]}'.encode())
             else:
                 #add to database
+                if ":" in messages[1]:
+                    sendersName = messages[1].split(": ")[0]    
+                else:
+                    continue
+                    # sendersName = messages[1].split(" ")[0]
+                # print("SENDER",sendersName)
+
+                x = datetime.datetime.now().strftime("%X")
+                curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,user[0],x))
+                conn.commit()
                 continue
-        except:
-            pass
+        except Exception as e:
+            print(e)
             #add to database
+            if ":" in messages[1]:
+                sendersName = messages[1].split(": ")[0]    
+            else:
+                sendersName = messages[1].split(" ")[0]
+            # print("SENDER",sendersName)
+
+            x = datetime.datetime.now().strftime("%X")
+            curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,user[0],x))
+            conn.commit()
+            continue
 
 def handle(client,addr):
     while True:
@@ -106,14 +162,16 @@ def handle(client,addr):
                 conn.commit()
                 break
             elif msg[:16] == "create_groupname":
-                groupname = msg[16:]
+                groupinfo = msg[16:].split("$")
+                groupname = groupinfo[0]
+                grouppass = groupinfo[1]
                 curr.execute("SELECT GROUPNAME FROM GPS WHERE GROUPNAME = %s",(groupname,))
                 l = curr.fetchall()
                 if len(l)!=0:
                     client.send("group_present".encode())
                 else:
                     index = clients.index(client)
-                    curr.execute("INSERT INTO GPS (GROUPNAME,USERNAME) VALUES (%s,%s)",(groupname,names[index]))
+                    curr.execute("INSERT INTO GPS (GROUPNAME,USERNAME,PASSWORD,ISADMIN) VALUES (%s,%s,%s,%s)",(groupname,names[index],grouppass,1))
                     conn.commit()
                     client.send("group_created".encode())
             elif msg[:15] == "check_groupname":
@@ -130,6 +188,7 @@ def handle(client,addr):
                         else:
                             curr.execute("INSERT INTO CHATROOMS (USERNAME, BUDDY) VALUES (%s,%s)",(names[index],groupname))
                             conn.commit()
+                            # print("hii")
                             client.send("group_present".encode())
                     except Exception as e:
                         print(e)
@@ -137,24 +196,29 @@ def handle(client,addr):
                 else:
                     client.send("no group".encode())
             elif msg[:14] == "join_groupname":
-                groupname = msg[14:]
-                curr.execute("SELECT GROUPNAME FROM GPS WHERE GROUPNAME = %s",(groupname,))
+                groupinfo = msg[14:].split("$")
+                groupname = groupinfo[0]
+                grouppass = groupinfo[1]
+                curr.execute("SELECT * FROM GPS WHERE GROUPNAME = %s",(groupname,))
                 l = curr.fetchall()
                 if len(l)!=0:
-                    index = clients.index(client)
-                    curr.execute("SELECT * FROM GPS WHERE GROUPNAME = %s AND USERNAME = %s",(groupname,names[index]))
-                    l = curr.fetchall()
-                    if len(l)!=0:
-                        client.send("already".encode())
+                    if l[0][2] != grouppass:
+                        client.send("Incorrect_pass".encode())
                     else:
-                        # groups[msg[14:]].append([names[index],client])
-                        curr.execute("INSERT INTO GPS (GROUPNAME,USERNAME) VALUES (%s,%s)",(groupname,names[index]))
-                        conn.commit()
-                        client.send("success".encode())
+                        index = clients.index(client)
+                        curr.execute("SELECT * FROM GPS WHERE GROUPNAME = %s AND USERNAME = %s",(groupname,names[index]))
+                        l = curr.fetchall()
+                        if len(l)!=0:
+                            client.send("already".encode())
+                        else:
+                            # groups[msg[14:]].append([names[index],client])
+                            curr.execute("INSERT INTO GPS (GROUPNAME,USERNAME,PASSWORD,ISADMIN) VALUES (%s,%s,%s,%s)",(groupname,names[index],grouppass,0))
+                            conn.commit()
+                            client.send("success".encode())
                 else:
                     client.send("No group".encode())
             elif msg.split(": ",1)[1] == "/quit":
-                print(msg.split(": ",1)[1] == "/quit")
+                # print(msg.split(": ",1)[1] == "/quit")
                 # index = clients.index(client)
                 # clients.remove(client)
                 # client.close()

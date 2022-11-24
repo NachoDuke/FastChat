@@ -1,9 +1,6 @@
-send messages to specific clients
-send messages between servers
-groups - create, join, send to 
-encryption and decryption
-bash file stuff
-database stuff
+encryption and decryption groups
+store keys in DB
+retrieve msgs from DB in real time and for pending msgs
 secure log in information
 FIGURE OUT HOW TO STORE PRIVATE KEYS
 

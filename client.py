@@ -133,7 +133,8 @@ def menu(name,client):
             return
         elif choice == 4:
             groupname = input("Enter the group name: ").strip()
-            client.send(f"create_groupname{groupname}".encode())
+            grouppass = input("Enter the goup password: ").strip()
+            client.send(f"create_groupname{groupname}${grouppass}".encode())
             msg = client.recv(1024).decode()
             # while True:
             #     print("hi")
@@ -148,7 +149,8 @@ def menu(name,client):
                 continue
         elif choice == 5:
             groupname = input("Enter the groupname: ").strip()
-            client.send(f"join_groupname{groupname}".encode())
+            password = input("Enter the password: ").strip()
+            client.send(f"join_groupname{groupname}${password}".encode())
             msg = client.recv(1024).decode()
             # while True:
             #     if msg == "success" or msg == "No group" or msg == "already":
@@ -158,6 +160,9 @@ def menu(name,client):
                 continue
             elif msg == "already":
                 print("You are already a part of this group")
+                continue
+            elif msg == "Incorrect_pass":
+                print("Incorrect password, please try again!")
                 continue
             else:
                 print("You have been added to the group")
