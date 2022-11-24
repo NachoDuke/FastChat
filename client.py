@@ -16,13 +16,15 @@ serverPort = int(client.recv(2048).decode())
 ADDR = (IP, serverPort)
 
 def receive(client,name):
+    print("Inside recieve function")
     while True:
         try:
-            a = client.recv(2048)
-            msg = a.decode()
+            # print("$")
+            msg = client.recv(2048).decode()
+            # print("********************MESSAGE RECIEVED***********************")
             # print(msg)
             if(msg ==  'correct' or msg == 'incorrect'):
-                break
+                continue
             fileName = "pkeys/"+name + "private.pem"
             with open(fileName,"rb") as f:
                 private = rsa.PrivateKey.load_pkcs1(f.read())
