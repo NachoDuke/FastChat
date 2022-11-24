@@ -222,7 +222,10 @@ def menu(name,client):
                             if(msg == "DONE"):
                                 break
                             else:
-                                fileName = "pkeys/"+name+"/"+name+"private.pem"
+                                if "(" in msg.split(": ")[0]:
+                                    fileName = "pkeys/"+name+"/"+senders[choice-1]+"private.pem"
+                                else:
+                                    fileName = "pkeys/"+name+"/"+name+"private.pem"
                                 with open(fileName,"rb") as f:
                                     private = rsa.PrivateKey.load_pkcs1(f.read())
                                     # pr = base64.b64encode(pr)
