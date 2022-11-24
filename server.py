@@ -35,7 +35,10 @@ def broadcast(msg, client):
             sameServer = True
             curr.execute("SELECT BUDDY FROM CHATROOMS WHERE USERNAME = %s",(receiverName,))
             l = curr.fetchall()
-            print(l[0][0])
+            print(l)
+            if len(l)==0:
+                continue
+            print(f'--- {l[0][0]}') 
             if l[0][0] == messages[1].split(": ")[0] or l[0][0] == messages[1].split(" ")[0]:
                 print("REACHED")
                 print(messages[1])
@@ -51,12 +54,28 @@ def broadcastGroup(msg,client):
     print(msg)
     messages=msg.split("$%$",1)
     groupname = messages[0]
-    for user in groups[groupname]:
-        c = user[1]
-        if c == client:
+    curr.execute("SELECT USERNAME FROM GPS WHERE GROUPNAME = %s",(groupname,))
+    l = curr.fetchall()
+    for user in l:
+        try:
+            index = names.index(user[0])
+            c = clients[index]
+            curr.execute("SELECT BUDDY FROM CHATROOMS WHERE USERNAME = %s",(user[0]))
+            buddy = curr.fetchall()
+            print(buddy)
+            if len(buddy) == 0:
+                #add to database
+                continue
+            if c == client:
+                continue
+            if buddy[0][0] == groupname:
+                c.send(f'{messages[1]}'.encode())
+            else:
+                #add to database
+                continue
+        except:
             pass
-        elif active_chat[user[0]] == groupname:
-            c.send(f'{messages[1]}'.encode())
+            #add to database
 
 def handle(client,addr):
     while True:
@@ -75,20 +94,10 @@ def handle(client,addr):
                     curr.execute("INSERT INTO CHATROOMS (USERNAME, BUDDY) VALUES (%s,%s)",(names[index],receiver))
                     conn.commit()
                     # active_chat[names[index]] = msg[14:]
-                    for i in range(10):
-                        try:
-                            client.send("correct".encode())
-                            time.sleep(0.2)
-                        except:
-                            continue    
+                    client.send("correct".encode())  
                     print("c")
                 else:
-                    for i in range(10):
-                        try:
-                            client.send("incorrect".encode())
-                            time.sleep(0.2)
-                        except:
-                            continue  
+                    client.send("incorrect".encode())  
                     print("ic")
             elif msg == "logged_out":
                 index = clients.index(client)
@@ -113,9 +122,18 @@ def handle(client,addr):
                 l = curr.fetchall()
                 if len(l)!=0:
                     index = clients.index(client)
-                    curr.execute("INSERT INTO CHATROOMS (USERNAME, BUDDY) VALUES (%s,%s)",(names[index],groupname))
-                    conn.commit()
-                    client.send("group_present".encode())
+                    try:
+                        curr.execute("SELECT USERNAME FROM GPS WHERE GROUPNAME = %s AND USERNAME = %s",(groupname,names[index]))
+                        present = curr.fetchall()
+                        if len(present) == 0:
+                            client.send("not in group".encode())
+                        else:
+                            curr.execute("INSERT INTO CHATROOMS (USERNAME, BUDDY) VALUES (%s,%s)",(names[index],groupname))
+                            conn.commit()
+                            client.send("group_present".encode())
+                    except Exception as e:
+                        print(e)
+                        client.send('group_present')
                 else:
                     client.send("no group".encode())
             elif msg[:14] == "join_groupname":
@@ -144,8 +162,10 @@ def handle(client,addr):
                 curr.execute("DELETE FROM CHATROOMS WHERE USERNAME = %s",(names[index],))
                 if "$-$" in msg:
                     broadcast(f"{msg.split('$-$',1)[0]}$-${msg.split('$-$',1)[1].split(': ',1)[0]} left",None)
+                    client.send("%$#quitReceive".encode())
                 else:
                     broadcastGroup(f"{msg.split('$%$',1)[0]}$%${msg.split('$%$',1)[1].split('(',1)[0]} left",None)
+                    client.send("%$#quitReceive".encode())
                 continue
             else:
                 if("$-$" in msg):
@@ -207,12 +227,14 @@ def receive():
                     print(1)
                     curr.execute("SELECT PASSWORD FROM CREDS WHERE USERNAME=%s",(name,))
                     pass_ = curr.fetchone()[0]
+                    # print(pass_)
                     pass_ = pass_.strip()
                     if pass_ == password:
                         #if login[name] == password:
                         # index = names.index(name)
                         #Condition to check if you're logged in somewhere else
                         curr.execute("SELECT * FROM SERVERS WHERE USERNAME=%s",(name,))
+                        # print("hi")
                         Name = curr.fetchall()
                         if (len(Name)==1):
                         #if(clients[index].fileno()!=-1):
@@ -220,7 +242,7 @@ def receive():
                             client.close()
                             continue
                         else:
-                            curr.execute("INSERT INTO SERVERS(USERNAME, PORTS) VALUES (%s,%s,%s)",(name, PORT))
+                            curr.execute("INSERT INTO SERVERS(USERNAME, PORTS) VALUES (%s,%s)",(name, PORT))
                             conn.commit()
                             index = names.index(name)
                             clients[index] = client

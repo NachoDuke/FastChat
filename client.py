@@ -16,7 +16,7 @@ serverPort = int(client.recv(2048).decode())
 ADDR = (IP, serverPort)
 
 def receive(client,name):
-    print("Inside recieve function")
+    # print("Inside recieve function")
     while True:
         try:
             # print("$")
@@ -25,6 +25,8 @@ def receive(client,name):
             # print(msg)
             if(msg ==  'correct' or msg == 'incorrect'):
                 continue
+            if(msg == "%$#quitReceive"):
+                return
             fileName = "pkeys/"+name + "private.pem"
             with open(fileName,"rb") as f:
                 private = rsa.PrivateKey.load_pkcs1(f.read())
@@ -46,6 +48,26 @@ def receive(client,name):
                 client.close()
                 break
 
+def receiveGroup(client,name):
+    # print("Inside recieve function")
+    while True:
+        try:
+            # print("$")
+            msg = client.recv(2048).decode()
+            # print("********************MESSAGE RECIEVED***********************")
+            # print(msg)
+            if(msg == "%$#quitReceive"):
+                return
+            print(msg)
+        except Exception as e:
+            print(e)
+            if client.fileno() == -1:
+                break
+            else:
+                print("Error!")
+                client.close()
+                break
+
 def menu(name,client):
     while True:
         for i in range(5):
@@ -58,31 +80,66 @@ def menu(name,client):
         choice = int(input("Enter your choice:- ").strip())
         if(choice==1):
             username = input("Enter the username with whom you wish to chat: ").strip()
-            DMchatRoom(username,name,client)
+            client.send(f"query_username{username}".encode())
+            # time.sleep(3)
+            msg = client.recv(1024).decode()
+            # while True:
+            #     try:
+            #         print(msg," ")
+            #         if msg != "":
+            #             break
+            #     except Exception as e:
+            #         print(e)
+            #         continue
+            if(msg == "incorrect"):
+                print("The entered username does not exist")
+                continue
+
+            receive_thread = threading.Thread(target=receive,args=(client,name))
+            receive_thread.start()
+
+            write_thread = threading.Thread(target=DMchatRoom,args=(username,name,client))
+            write_thread.start()
+
+            while True:
+                if not receive_thread.is_alive() and not write_thread.is_alive():
+                    break
+
         elif choice ==2:
             groupname = input("Enter the group name: ").strip()
-            while True:
-                client.send(f"check_groupname{groupname}".encode())
-                msg = client.recv(1024).decode()
-                if msg == "group_present" or msg == "no group":
-                    break
+            client.send(f"check_groupname{groupname}".encode())
+            msg = client.recv(1024).decode()
             if msg == "no group":
                 print("The given group does not exist!! Please try again.")
                 continue
+            elif msg == "not in group":
+                print("You are not a part of this Group, please join first.")
+                continue
             else:
-                groupchat(groupname,name,client)
+
+                receive_thread = threading.Thread(target=receiveGroup,args=(client,name))
+                receive_thread.start()
+
+                write_thread = threading.Thread(target=groupchat,args=(groupname,name,client))
+                write_thread.start()
+
+                while True:
+                    if not receive_thread.is_alive() and not write_thread.is_alive():
+                        break
+
         elif choice==3:
             client.send('logged_out'.encode())
             client.close()
-            newUser()
-            break
+            return
         elif choice == 4:
             groupname = input("Enter the group name: ").strip()
-            while True:
-                client.send(f"create_groupname{groupname}".encode())
-                msg = client.recv(1024).decode()
-                if msg == "group_present" or msg == "group_created":
-                    break
+            client.send(f"create_groupname{groupname}".encode())
+            msg = client.recv(1024).decode()
+            # while True:
+            #     print("hi")
+            #     # print(f'-- {msg}')
+            #     if msg == "group_present" or msg == "group_created":
+            #         break
             if msg == "group_present":
                 print("A group by this name already exists, please try again")
                 continue
@@ -91,11 +148,11 @@ def menu(name,client):
                 continue
         elif choice == 5:
             groupname = input("Enter the groupname: ").strip()
-            while True:
-                client.send(f"join_groupname{groupname}".encode())
-                msg = client.recv(1024).decode()
-                if msg == "success" or msg == "No group" or msg == "already":
-                    break
+            client.send(f"join_groupname{groupname}".encode())
+            msg = client.recv(1024).decode()
+            # while True:
+            #     if msg == "success" or msg == "No group" or msg == "already":
+            #         break
             if msg == "No group":
                 print("There is no such group")
                 continue
@@ -109,20 +166,6 @@ def menu(name,client):
             print(choice)
 
 def DMchatRoom(username,name,client):
-    client.send(f"query_username{username}".encode())
-    # time.sleep(3)
-    while True:
-        try:
-            msg = client.recv(1024).decode()
-            print(msg," ")
-            if msg != "":
-                break
-        except Exception as e:
-            print(e)
-            continue
-    if(msg == "incorrect"):
-        print("The entered username does not exist")
-        return
     print("Enter \'/quit\' to quit this room")
     print()
     while True:
@@ -151,21 +194,6 @@ def groupchat(groupname,name,client):
         client.send(msg.encode())
 
 def login(client,name,password,entry):
-    # while True:
-    #     entry = int(input("What do you want to do? \n1. Sign In \n2. Sign Up \n3. Quit\n"))
-    #     print("Taken choice as: ",entry)
-    #     if entry != 1 and entry != 2 and entry!=3:
-    #         print("Invalid input, try again!")
-    #     else:
-    #         if(entry == 3):
-    #             client.close()
-    #             return (0,"")
-
-    #         name = input("Enter username: ")
-    #         print("Confirmed UserName as: ",name)
-    #         password = input("Enter password: ")
-    #         print("Confirmed Password as: ",password)
-    #         break
 
     try:
         msg = client.recv(2048).decode()
@@ -213,34 +241,31 @@ def login(client,name,password,entry):
 def newUser():
     while True:
         while True:
-            entry = int(input("What do you want to do? \n1. Sign In \n2. Sign Up \n3. Quit\n").strip())
-            print("Taken choice as: ",entry)
-            if entry != 1 and entry != 2 and entry!=3:
-                print("Invalid input, try again!")
-            else:
-                if(entry == 3):
-                    # return (0,"")
-                    sys.exit()
+            while True:
+                entry = int(input("What do you want to do? \n1. Sign In \n2. Sign Up \n3. Quit\n").strip())
+                print("Taken choice as: ",entry)
+                if entry != 1 and entry != 2 and entry!=3:
+                    print("Invalid input, try again!")
+                else:
+                    if(entry == 3):
+                        # return (0,"")
+                        sys.exit()
 
-                name = input("Enter username: ").strip()
-                print("Confirmed UserName as: ",name)
-                password = input("Enter password: ").strip()
-                print("Confirmed Password as: ",password)
+                    name = input("Enter username: ").strip()
+                    print("Confirmed UserName as: ",name)
+                    password = input("Enter password: ").strip()
+                    print("Confirmed Password as: ",password)
+                    break
+            client = socket.socket(socket.AF_INET,  socket.SOCK_STREAM)
+            client.connect(ADDR)
+            error_code,name = login(client,name,password,entry)
+            # if error_code==0:
+            #     sys.exit()
+            if error_code==1:
                 break
-        client = socket.socket(socket.AF_INET,  socket.SOCK_STREAM)
-        client.connect(ADDR)
-        error_code,name = login(client,name,password,entry)
-        # if error_code==0:
-        #     sys.exit()
-        if error_code==1:
-            break
-        if error_code==2 or error_code==3 or error_code==4 or error_code==5:
-            continue
+            if error_code==2 or error_code==3 or error_code==4 or error_code==5:
+                continue
 
-    receive_thread = threading.Thread(target=receive,args=(client,name))
-    receive_thread.start()
-
-    write_thread = threading.Thread(target=menu,args=(name,client))
-    write_thread.start()
+        menu(name,client)
 
 newUser()
