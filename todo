@@ -1,5 +1,5 @@
 encryption and decryption groups
-store keys in DB
+images
 retrieve msgs from DB in real time and for pending msgs
 secure log in information
 FIGURE OUT HOW TO STORE PRIVATE KEYS

@@ -4,6 +4,8 @@ import sys
 import time
 import rsa
 import base64
+import pem
+import os
 
 IP = socket.gethostbyname(socket.gethostname())
 with open("dsPort.txt",'r') as f:
@@ -98,7 +100,7 @@ def menu(name,client):
             receive_thread = threading.Thread(target=receive,args=(client,name))
             receive_thread.start()
 
-            write_thread = threading.Thread(target=DMchatRoom,args=(username,name,client))
+            write_thread = threading.Thread(target=DMchatRoom,args=(username,name,client,msg))
             write_thread.start()
 
             while True:
@@ -170,15 +172,20 @@ def menu(name,client):
         else:
             print(choice)
 
-def DMchatRoom(username,name,client):
+def DMchatRoom(username,name,client,keyPublic):
     print("Enter \'/quit\' to quit this room")
     print()
     while True:
         usermsg = input().strip()
         if usermsg != "/quit":
+
             fileName = "pkeys/"+username + "public.pem"
+            with open(fileName,"w") as f:
+                f.write(keyPublic)
             with open(fileName,"rb") as f:
                 public = rsa.PublicKey.load_pkcs1(f.read())
+
+            os.remove(fileName)
             usermsg = rsa.encrypt(base64.b64encode(usermsg.encode()),public)
             usermsg = str(usermsg)
         msg = f'{username}$-${name}: {usermsg}'
@@ -223,6 +230,12 @@ def login(client,name,password,entry):
                 with open(fileName,"wb") as f:
                     f.write(publicKey.save_pkcs1("PEM"))
 
+                keyPublic = str(pem.parse_file(fileName)[0])
+                client.send(f"{keyPublic}".encode())
+
+                os.remove(fileName)
+
+                # rsa.PublicKey.
                 return (1,name)
             elif msg2 == "Incorrect Password":
                 print("Please Try Again")

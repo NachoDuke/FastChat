@@ -150,7 +150,9 @@ def handle(client,addr):
                     curr.execute("INSERT INTO CHATROOMS (USERNAME, BUDDY) VALUES (%s,%s)",(names[index],receiver))
                     conn.commit()
                     # active_chat[names[index]] = msg[14:]
-                    client.send("correct".encode())  
+                    curr.execute("SELECT PUBLICKEY FROM CREDS WHERE USERNAME = %s",(receiver,))
+                    keyPublic = curr.fetchall()[0][0]
+                    client.send(f"{keyPublic}".encode())  
                     print("c")
                 else:
                     client.send("incorrect".encode())  
@@ -271,18 +273,21 @@ def receive():
                     #change 0 to publickey
                     print(name)
                     print(password)
-                    curr.execute("INSERT INTO CREDS (USERNAME, PASSWORD, PUBLICKEY) VALUES (%s,%s,%s)",(str(name), str(password), 'None'))
+                    # curr.execute("INSERT INTO CREDS (USERNAME, PASSWORD, PUBLICKEY) VALUES (%s,%s,%s)",(str(name), str(password), 'None'))
                     names.append(name)
                     #login[name]=password
                     # print("Chal rha")
                     # print(type(PORT))
-                    curr.execute("INSERT INTO SERVERS (USERNAME, PORTS) VALUES (%s,%s)",(str(name),int(PORT)))
                     # print("COMMIT KRNE JARHA******************")
-                    conn.commit()
+                    # conn.commit()
                     # print("COMMIT KRDIYA************************")
                     clients.append(client)
                     #active_chat[name] = None
                     client.send("Successfully signed up!".encode())
+                    keyPublic = client.recv(1024).decode()
+                    curr.execute("INSERT INTO CREDS (USERNAME, PASSWORD, PUBLICKEY) VALUES (%s,%s,%s)",(str(name), str(password), keyPublic))
+                    curr.execute("INSERT INTO SERVERS (USERNAME, PORTS) VALUES (%s,%s)",(str(name),int(PORT)))
+                    conn.commit()
             else:
                 curr.execute("SELECT USERNAME FROM CREDS WHERE USERNAME=%s",(name,))
                 name_ = curr.fetchall()
