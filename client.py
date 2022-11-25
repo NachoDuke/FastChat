@@ -6,16 +6,13 @@ import rsa
 import base64
 import pem
 import os
+import datetime
 
 IP = socket.gethostbyname(socket.gethostname())
 with open("dsPort.txt",'r') as f:
     PORT = int(f.read())
-ADDR = (IP, PORT)
-# QUIT = "!quit"
-client = socket.socket(socket.AF_INET,  socket.SOCK_STREAM)
-client.connect(ADDR)
-serverPort = int(client.recv(2048).decode())
-ADDR = (IP, serverPort)
+addr = (IP, PORT)
+# print(addr)
 
 def receive(client,name):
     # print("Inside recieve function")
@@ -70,7 +67,16 @@ def receive(client,name):
                 asdf = asdf.encode().decode('unicode_escape').encode('raw_unicode_escape')
                 # print(asdf)
                 asdf  = base64.b64decode(rsa.decrypt(asdf,private)).decode()
-                
+                fileName = "chats/"+name+".txt"
+                curr_time = datetime.datetime.now().strftime("%H:%M:%S:%f")
+                obj = curr_time.split(":")
+                secs = 0
+                for i in range(3):
+                    secs = secs*60 + int(obj[i])
+                secs = secs*1000000 + int(obj[3])
+                with open(fileName,"a") as f:
+                    s = msg.split(": ",1)[0]+": "+asdf
+                    f.write(f"{secs}-{name}$-${s}\n")
                 print(msg.split(": ",1)[0]+": "+asdf)
             else:
                 print(msg)
@@ -101,6 +107,16 @@ def receiveGroup(client,name,groupname):
                 asdf = asdf[2:-1]
                 asdf = asdf.encode().decode('unicode_escape').encode('raw_unicode_escape')
                 asdf  = base64.b64decode(rsa.decrypt(asdf,private)).decode()
+                fileName = "chats/"+name+".txt"
+                curr_time = datetime.datetime.now().strftime("%H:%M:%S:%f")
+                obj = curr_time.split(":")
+                secs = 0
+                for i in range(3):
+                    secs = secs*60 + int(obj[i])
+                secs = secs*1000000 + int(obj[3])
+                with open(fileName,"a") as f:
+                    s = msg.split(": ",1)[0]+": "+asdf
+                    f.write(f"{secs}-{name}$-${s}\n")
                 print(msg.split(": ",1)[0]+": "+asdf)
             else:
                 print(msg)
@@ -175,6 +191,9 @@ def menu(name,client):
 
         elif choice==3:
             client.send('logged_out'.encode())
+            client = socket.socket(socket.AF_INET,  socket.SOCK_STREAM)
+            client.connect((IP,PORT))
+            client.send(str(addr[1]).encode())
             client.close()
             return
         
@@ -336,7 +355,7 @@ def DMchatRoom(username,name,client,keyPublic):
             time.sleep(0.05)
             # print(msg)
             client.sendall(msg.encode())
-            time.sleep(0.05)
+            time.sleep(10)
             continue
         elif usermsg != "/quit":
 
@@ -350,6 +369,10 @@ def DMchatRoom(username,name,client,keyPublic):
             usermsg = rsa.encrypt(base64.b64encode(usermsg.encode()),public)
             usermsg = str(usermsg)
         msg = f'{username}$-${name}: {usermsg}'
+        # fileName = "chats/"+name+".txt"
+        # curr_time = time.time()
+        # with open(fileName,"a") as f:
+        #     f.write(f"{curr_time}-{msg}\n")
         if msg.split(": ",1)[1]=="/quit":
             client.send(msg.encode())
             return
@@ -435,6 +458,7 @@ def login(client,name,password,entry):
             return (0,name)
 
 def newUser():
+    global addr
     while True:
         while True:
             while True:
@@ -444,7 +468,6 @@ def newUser():
                     print("Invalid input, try again!")
                 else:
                     if(entry == 3):
-                        # return (0,"")
                         sys.exit()
 
                     name = input("Enter username: ").strip()
@@ -452,8 +475,15 @@ def newUser():
                     password = input("Enter password: ").strip()
                     print("Confirmed Password as: ",password)
                     break
+
             client = socket.socket(socket.AF_INET,  socket.SOCK_STREAM)
-            client.connect(ADDR)
+            client.connect((IP,PORT))
+            client.send("route".encode())
+            serverPort = int(client.recv(2048).decode())
+            addr = (IP, serverPort)
+            # print(addr)
+            client = socket.socket(socket.AF_INET,  socket.SOCK_STREAM)
+            client.connect(addr)
             error_code,name = login(client,name,password,entry)
             # if error_code==0:
             #     sys.exit()

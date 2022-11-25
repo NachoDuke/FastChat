@@ -251,6 +251,8 @@ def handle(client,addr):
             elif msg == "logged_out":
                 index = clients.index(client)
                 curr.execute("DELETE FROM SERVERS WHERE USERNAME = %s",(names[index]))
+                clients.remove(client)
+                names.remove(names[index])
                 client.close()
                 conn.commit()
                 break
@@ -518,10 +520,12 @@ def receive():
                             client.close()
                             continue
                         else:
+                            clients.append(client)
+                            names.append(name)
                             curr.execute("INSERT INTO SERVERS(USERNAME, PORTS) VALUES (%s,%s)",(name, PORT))
                             conn.commit()
-                            index = names.index(name)
-                            clients[index] = client
+                            # index = names.index(name)
+                            # clients[index] = client
                             #active_chat[name] = None
                             client.send("Logged In".encode())
                     else:

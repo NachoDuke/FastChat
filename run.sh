@@ -21,11 +21,11 @@ gnome-terminal -e "python3 server.py"
 # gnome-terminal -e "python3 server.py"
 
 #launch the ds serer
-gnome-terminal -e "python3 ds.py"
+gnome-terminal -e "python3 ds_one.py"
 
 #launch the clients
 #add number of clients as necessary with their own clien1 and client 2 files
-gnome-terminal -- /bin/sh -c 'python3 client.py'
-gnome-terminal -- /bin/sh -c 'python3 client.py'
+# gnome-terminal -- /bin/sh -c 'python3 client.py'
+# gnome-terminal -- /bin/sh -c 'python3 client.py'
 # gnome-terminal -- /bin/sh -c 'python3 client.py'
 # gnome-terminal -- /bin/sh -c 'python3 client.py'
