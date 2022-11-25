@@ -114,7 +114,8 @@ def broadcastGroup(msg,client):
             else:
                 #add to database
                 if ":" in messages[1]:
-                    sendersName = messages[1].split(": ")[0]    
+                    sendersName = messages[1].split(": ")[0] 
+                    sendersName = sendersName.split("(")[1][:-1]    
                 else:
                     continue
                     # sendersName = messages[1].split(" ")[0]
@@ -128,7 +129,8 @@ def broadcastGroup(msg,client):
             print(e)
             #add to database
             if ":" in messages[1]:
-                sendersName = messages[1].split(": ")[0]    
+                sendersName = messages[1].split(": ")[0]   
+                sendersName = sendersName.split("(")[1][:-1] 
             else:
                 sendersName = messages[1].split(" ")[0]
             # print("SENDER",sendersName)
@@ -139,15 +141,21 @@ def broadcastGroup(msg,client):
             continue
 
 def broadcastPending(msg,client):
-    print(msg)
-    client.send(f'{msg}'.encode())
+    print(msg=="")
+    client.send(msg.encode())
     time.sleep(0.05) 
 
 def handle(client,addr):
     while True:
         try:
-            msg = client.recv(2048).decode()
+            handleDB(client)
+            try:
+                msg = client.recv(2048).decode()
+            except:
+                continue
+
             print(msg)
+
             if msg[:14]=="query_username":
                 # print(5/0)
                 # time.sleep(1)
@@ -299,10 +307,28 @@ def handle(client,addr):
             # broadcast(f"{names[index]} left",None)
             break
 
+def handleDB(client):
+    name = names[clients.index(client)]
+    #finding name's buddy
+    curr.execute("SELECT BUDDY FROM CHATROOMS WHERE USERNAME = %s",(name,))
+    buddy = curr.fetchall()
+    if len(buddy) == 0:
+        pass
+    else:
+        buddy = buddy[0][0]
+        curr.execute("SELECT CONTENT FROM MESSAGES WHERE RECEIVER = %s AND SENDER = %s",(name,buddy))
+        msgs = curr.fetchall()
+        curr.execute("DELETE FROM MESSAGES WHERE RECEIVER = %s AND SENDER = %s",(name,buddy))
+        conn.commit()
+        for msg in msgs:
+            broadcastPending(msg[0],client)
+
 def receive():
     while True:
         try:
             client, addr = server.accept()
+            # client.setblocking(0)
+            client.settimeout(10)
             print(f"{addr} connected")
             client.send("entry_type".encode())
             entry = client.recv(1024).decode()
@@ -381,6 +407,10 @@ def receive():
 
             thread = threading.Thread(target=handle, args=(client,addr))
             thread.start()
+
+            # dbthread = threading.Thread(target=handleDB, args=(client,))
+            # dbthread.start()
+
         except Exception as e:
             print(e)
             continue

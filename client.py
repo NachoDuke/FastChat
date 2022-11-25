@@ -23,6 +23,7 @@ def receive(client,name):
         try:
             # print("$")
             msg = client.recv(2048).decode()
+
             # print("********************MESSAGE RECIEVED***********************")
             # print(msg)
             if(msg ==  'correct' or msg == 'incorrect'):
@@ -37,7 +38,9 @@ def receive(client,name):
                 asdf = msg.split(": ",1)[1]
                 asdf = asdf[2:-1]
                 asdf = asdf.encode().decode('unicode_escape').encode('raw_unicode_escape')
+                # print(asdf)
                 asdf  = base64.b64decode(rsa.decrypt(asdf,private)).decode()
+                
                 print(msg.split(": ",1)[0]+": "+asdf)
             else:
                 print(msg)
