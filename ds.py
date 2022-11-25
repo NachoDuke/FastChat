@@ -3,6 +3,7 @@ import socket
 import threading
 import time
 import os
+from cryptography.fernet import Fernet
 
 #returns the port number with the least number of devices connected to it
 def portMin(loads):
@@ -37,6 +38,10 @@ def receive():
         client.send(min.encode())
 
 if __name__=="__main__":
+    key = Fernet.generate_key()
+    fernetFile = "pkeys/fernet.key"
+    with open (fernetFile,"wb") as f:
+        f.write(key)
     IP = socket.gethostbyname(socket.gethostname())
     ADDR = (IP, 0)
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

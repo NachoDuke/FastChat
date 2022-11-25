@@ -93,6 +93,7 @@ def menu(name,client):
         print("Create a group - 4")
         print("Join a group - 5")
         print("View pending messages - 6")
+        print("Remove Group Participants(admins only) - 7")
         choice = int(input("Enter your choice:- ").strip())
         if(choice==1):
             username = input("Enter the username with whom you wish to chat: ").strip()
@@ -246,7 +247,36 @@ def menu(name,client):
                         continue
                 except Exception as e:
                     print(e)
-                
+
+        elif choice == 7:
+            client.send(("adminops"+name).encode())
+            groupList = client.recv(1024).decode()
+            print(groupList)
+            if(groupList=="noGroups"):
+                print("You are not an admin of any groups")
+                continue
+            else:
+                groups = groupList.split("$")
+                choice = 1
+                for group in groups:
+                    print(str(choice)+". "+group)
+                choice = int(input("Select one of the above groups"))
+                if(choice<=len(groups) and choice >0):
+                    group = groups[choice-1]
+                    user = input("Enter the username to be removed from the chosen group")
+                    group = group +"!@#"+user
+                    client.send(group.encode())
+                    e = client.recv(1024).decode()
+                    if(e=="No such User"):
+                        print(e)
+                        continue
+                    else:
+                        print("Successfully removed")
+                else:
+                    client.send("!@#$%".encode())
+                    print("Invalid Input")
+                    continue
+
         else:
             print("Please enter a valid choice!!!")
 
@@ -296,6 +326,10 @@ def groupchat(groupname,name,client,keyPublic):
 def login(client,name,password,entry):
 
     try:
+        # rsaKey = "pkeys/"+name+"/"+name+"private.pem"
+        # with open(rsaKey,"rb") as f:
+        #     privKey = rsa.PrivateKey.load_pkcs1(f.read())
+        # password = rsa.encrypt(base64.b64encode(password.encode()),privKey)
         msg = client.recv(2048).decode()
         # print(msg)
         # print(str(entry))

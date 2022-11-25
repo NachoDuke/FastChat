@@ -4,6 +4,7 @@ import time
 import psycopg2
 import datetime
 import pem
+from cryptography.fernet import Fernet
 
 IP = socket.gethostbyname(socket.gethostname())
 ADDR = (IP, 0)
@@ -148,11 +149,16 @@ def broadcastPending(msg,client):
 def handle(client,addr):
     while True:
         try:
-            handleDB(client)
+            try:
+                handleDB(client)
+            except:
+                continue
+            client.settimeout(0.1)
             try:
                 msg = client.recv(2048).decode()
             except:
                 continue
+            client.settimeout(None)
 
             print(msg)
 
@@ -276,6 +282,36 @@ def handle(client,addr):
                 time.sleep(0.05)
                 client.send("DONE".encode())
 
+            elif msg[:8] == "adminops":
+                admin = msg[8:]
+                print(admin)
+                curr.execute("SELECT GROUPNAME FROM GPS WHERE USERNAME = %s AND ISADMIN = 1",(admin,))
+                l = curr.fetchall()
+                print(l)
+                if(len(l)==0):
+                    client.send("noGroups".encode())
+                else:
+                    groupList = ""
+                    for group in l:
+                        groupList+=group[0]+"$"
+                    groupList = groupList[:-1]
+                    print(groupList)
+                    client.send(groupList.encode())
+                    choice = client.recv(1024).decode()
+                    if choice == "!@#$%":
+                        continue
+                    else:
+                        groupchoice = choice.split("!@#")[0]
+                        userchoice = choice.split("!@#")[1]
+                        curr.execute("SELECT USERNAME FROM GPS WHERE GROUPNAME = %s AND USERNAME = %s",(groupchoice,userchoice))
+                        if(len(curr.fetchall())==0):
+                            client.send("No such User".endcode())
+                            continue
+                        else:
+                            curr.execute("DELETE FROM GPS WHERE GROUPNAME = %s AND USERNAME = %s",(groupchoice,userchoice))
+                            conn.commit()
+                            client.send("successfully removed".encode())
+
             elif msg.split(": ",1)[1] == "/quit":
                 # print(msg.split(": ",1)[1] == "/quit")
                 # index = clients.index(client)
@@ -310,7 +346,9 @@ def handle(client,addr):
 def handleDB(client):
     name = names[clients.index(client)]
     #finding name's buddy
+    # print("executing")
     curr.execute("SELECT BUDDY FROM CHATROOMS WHERE USERNAME = %s",(name,))
+    # print("it worked")
     buddy = curr.fetchall()
     if len(buddy) == 0:
         pass
@@ -328,7 +366,7 @@ def receive():
         try:
             client, addr = server.accept()
             # client.setblocking(0)
-            client.settimeout(10)
+            # client.settimeout(10)
             print(f"{addr} connected")
             client.send("entry_type".encode())
             entry = client.recv(1024).decode()
@@ -361,6 +399,11 @@ def receive():
                     #active_chat[name] = None
                     client.send("Successfully signed up!".encode())
                     keyPublic = client.recv(1024).decode()
+                    fernetFile = "pkeys/fernet.key"
+                    key = open(fernetFile,"rb").read()
+                    password = password.encode()
+                    x = Fernet(key)
+                    password = str(x.encrypt(password))
                     curr.execute("INSERT INTO CREDS (USERNAME, PASSWORD, PUBLICKEY) VALUES (%s,%s,%s)",(str(name), str(password), keyPublic))
                     curr.execute("INSERT INTO SERVERS (USERNAME, PORTS) VALUES (%s,%s)",(str(name),int(PORT)))
                     conn.commit()
@@ -371,9 +414,14 @@ def receive():
                 if len(name_) == 1:
                     print(1)
                     curr.execute("SELECT PASSWORD FROM CREDS WHERE USERNAME=%s",(name,))
-                    pass_ = curr.fetchone()[0]
+                    pass_ = curr.fetchall()[0][0]
                     # print(pass_)
-                    pass_ = pass_.strip()
+                    pass_ = pass_[2:-1].encode()
+                    print(pass_)
+                    key = open("pkeys/fernet.key","rb").read()
+                    x = Fernet(key)
+                    pass_ = x.decrypt(pass_).decode()
+                    print("password",pass_)
                     if pass_ == password:
                         #if login[name] == password:
                         # index = names.index(name)
