@@ -20,6 +20,8 @@ def portMin(loads):
 
 
 def route():
+    """Routes the clients to the servers using the minimum load strategy
+    """
     global loads
     #Load up the servers list
     with open("port.txt",'r') as f:
@@ -52,6 +54,8 @@ def route():
             continue
 
 if __name__=="__main__":
+    """Launches the load balancing server, assigns the port and calls the necessary functions
+    """
     key = Fernet.generate_key()
     fernetFile = "pkeys/fernet.key"
     with open (fernetFile,"wb") as f:

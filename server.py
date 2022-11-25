@@ -27,6 +27,13 @@ groups = {}
 active_chat = {}
 
 def broadcast(msg, client):
+    """Sends the personal message to clients
+
+    :param msg: the message content
+    :type msg: str
+    :param client: connection object with the receiving client
+    :type client: socket.socket
+    """
     print(msg)
     messages=msg.split("$-$",1)
     print(messages)
@@ -40,13 +47,10 @@ def broadcast(msg, client):
             l = curr.fetchall()
             print(l)
             if len(l)==0:
-                #add to the database
                 if ":" in messages[1]:
                     sendersName = messages[1].split(": ")[0]    
                 else:
                     continue
-                    # sendersName = messages[1].split(" ")[0]
-                # print("SENDER",sendersName)
 
                 x = datetime.datetime.now().strftime("%X")
                 curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,receiverName,x))
@@ -58,13 +62,10 @@ def broadcast(msg, client):
                 print(messages[1])
                 c.send(f'{messages[1]}'.encode()) 
             else:
-                #add to the database
                 if ":" in messages[1]:
                     sendersName = messages[1].split(": ")[0]    
                 else:
                     continue
-                    # sendersName = messages[1].split(" ")[0]
-                # print("SENDER",sendersName)
 
                 x = datetime.datetime.now().strftime("%X")
                 curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,receiverName,x))
@@ -82,6 +83,13 @@ def broadcast(msg, client):
         conn.commit()
 
 def broadcastGroup(msg,client):
+    """Module used to send text messages to group-members
+
+    :param msg: message content
+    :type msg: str
+    :param client: list of connection objects with clients
+    :type client: list
+    """
     print(msg)
     messages=msg.split("$%$",1)
     groupname = messages[0]
@@ -142,14 +150,30 @@ def broadcastGroup(msg,client):
             continue
 
 def broadcastPending(msg,client):
+    """Helper function
+
+    :param msg: the message content
+    :type msg: str
+    :param client: connection object with the client
+    :type client: socket.socket
+    """
     print(msg=="")
     client.send(msg.encode())
     time.sleep(0.05) 
 
 def broadcastI(imMsg, size, msg,client):
-    #print(msg)
+    """Module to send images as personal message to users
+
+    :param imMsg: send the /image message to client, notifying it that an image is to be received
+    :type imMsg: str
+    :param size: size of imMsg
+    :type size: int
+    :param msg: the image data encoded into string
+    :type msg: str
+    :param client: connection object with the client
+    :type client: socket.socket
+    """
     messages=msg.split("$-$",1)
-    #print(messages)
     receiverName = messages[0]
     sameServer = False
     for c in clients:
@@ -158,7 +182,6 @@ def broadcastI(imMsg, size, msg,client):
             sameServer = True
             curr.execute("SELECT BUDDY FROM CHATROOMS WHERE USERNAME = %s",(receiverName,))
             l = curr.fetchall()
-            #print(l)
             if len(l)==0:
                 #add to the database
                 if ":" in messages[1]:
@@ -172,12 +195,8 @@ def broadcastI(imMsg, size, msg,client):
                 curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,receiverName,x))
                 conn.commit()
                 continue
-            #print(f'--- {l[0][0]}') 
             if l[0][0] == messages[1].split(": ")[0] or l[0][0] == messages[1].split(" ")[0]:
                 print("REACHED")
-                #print(imMsg.encode())
-                #print(str(size))
-                #print(messages[1])
                 c.send(imMsg.encode())
                 print("116")
                 time.sleep(0.05)
@@ -207,12 +226,18 @@ def broadcastI(imMsg, size, msg,client):
             sendersName = messages[1].split(": ")[0]
         else:
             return
-            # sendersName = messages[1].split(" ")[0]
         x = datetime.datetime.now().strftime("%X")
         curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,receiverName,x))
         conn.commit()
 
 def handle(client,addr):
+    """module which receives messages and signals from the user
+
+    :param client: connection object with the client
+    :type client: socket.socket
+    :param addr: address of the client
+    :type addr: int
+    """
     while True:
         try:
             try:
@@ -394,14 +419,9 @@ def handle(client,addr):
                 if("$-$" in Msg):
                     broadcastI(msg,length,Msg,client)
                 else:
-                    # broadcastGroupI(msg,length,Msg,client)
                     pass
 
             elif msg.split(": ",1)[1] == "/quit":
-                # print(msg.split(": ",1)[1] == "/quit")
-                # index = clients.index(client)
-                # clients.remove(client)
-                # client.close()
                 index = clients.index(client)
                 curr.execute("DELETE FROM CHATROOMS WHERE USERNAME = %s",(names[index],))
                 if "$-$" in msg:
@@ -421,19 +441,17 @@ def handle(client,addr):
         except Exception as e:
             print(f"{e}........")
             index = clients.index(client)
-            # clients.remove(client)
             client.close()
-            # name = names(index)
-            # names.remove(name)
-            # broadcast(f"{names[index]} left",None)
             break
 
 def handleDB(client):
+    """used to insert, retrieve and delete messages when the user is offline
+
+    :param client: connection object with the client
+    :type client: socket.socket
+    """
     name = names[clients.index(client)]
-    #finding name's buddy
-    # print("executing")
     curr.execute("SELECT BUDDY FROM CHATROOMS WHERE USERNAME = %s",(name,))
-    # print("it worked")
     buddy = curr.fetchall()
     if len(buddy) == 0:
         pass
@@ -447,41 +465,27 @@ def handleDB(client):
             broadcastPending(msg[0],client)
 
 def receive():
+    """handles the login information and password from the user 
+    """
     while True:
         try:
             client, addr = server.accept()
-            # client.setblocking(0)
-            # client.settimeout(10)
             print(f"{addr} connected")
             client.send("entry_type".encode())
             entry = client.recv(1024).decode()
             name = client.recv(1024).decode()
             password = client.recv(1024).decode()
             if int(entry) == 2:
-                # print("IDHER TOH AYEGA HI")
-                #if name in creds(USERNAME)
-                # print(conn)
                 curr.execute("SELECT USERNAME FROM CREDS WHERE USERNAME = %s",(name,))
                 if len(curr.fetchall()) == 1:
-                    # print("KHO GAYE HUM KHA")
                     client.send("Username by this account already exists, try signing in!".encode())
                     client.close()
                     continue
                 else:
-                    # print("SERVER YHAN AANA CHAHIYE")
-                    #change 0 to publickey
                     print(name)
                     print(password)
-                    # curr.execute("INSERT INTO CREDS (USERNAME, PASSWORD, PUBLICKEY) VALUES (%s,%s,%s)",(str(name), str(password), 'None'))
                     names.append(name)
-                    #login[name]=password
-                    # print("Chal rha")
-                    # print(type(PORT))
-                    # print("COMMIT KRNE JARHA******************")
-                    # conn.commit()
-                    # print("COMMIT KRDIYA************************")
                     clients.append(client)
-                    #active_chat[name] = None
                     client.send("Successfully signed up!".encode())
                     keyPublic = client.recv(1024).decode()
                     fernetFile = "pkeys/fernet.key"
@@ -538,7 +542,6 @@ def receive():
                     continue
 
             print(f"Name of the client is {name}")
-            # broadcast(f"{name} joined", None)
 
             thread = threading.Thread(target=handle, args=(client,addr))
             thread.start()

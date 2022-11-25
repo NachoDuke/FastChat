@@ -1,0 +1,6 @@
+format:
+receivetime-<receiver>$-$<sender>: sendtime&&&<message>
+or
+receivetime-<receiver>$%$<sender>: sendtime&&&<message>
+
+EX:

@@ -13,6 +13,8 @@ counter = 0
 
 
 def route():
+    """Routes the clients to the servers by the round robin strategy
+    """
     global loads
     global counter
     #Load up the servers list
@@ -47,6 +49,8 @@ def route():
             continue
 
 if __name__=="__main__":
+    """Launches the load balancing server, assigns the port and calls the necessary functions
+    """
     key = Fernet.generate_key()
     fernetFile = "pkeys/fernet.key"
     with open (fernetFile,"wb") as f:

@@ -12,60 +12,47 @@ IP = socket.gethostbyname(socket.gethostname())
 with open("dsPort.txt",'r') as f:
     PORT = int(f.read())
 addr = (IP, PORT)
-# print(addr)
 
 def receive(client,name):
-    # print("Inside recieve function")
+    """The receive module for client. It recieves the messages and images from the server
+
+    :param client: the connection object with server
+    :type client: socket.socket
+    :param name: name of the user logged in 
+    :type name: str
+    """
     while True:
         try:
-            # print("$")
             msg = client.recv(2048).decode()
-
-            # print("********************MESSAGE RECIEVED***********************")
-            # print(msg)
             if(msg ==  'correct' or msg == 'incorrect'):
                 continue
             if(msg == "%$#quitReceive"):
                 return
             if ": " in msg:
                 if msg.split(": ",1)[1] == "/image":
-                    # print("****REC IMAGES*******")
                     length = int(str(client.recv(2048).decode()))
-                    # print(length)
                     Msg = ""
                     while ( len(Msg)<length ):
                         a = client.recv(2048).decode()
                         time.sleep(0.01)
-                        # print(a[-5:])
                         Msg=Msg+a
                     time.sleep(0.05)
-                    # print(3)
                     Msg = Msg.split(": ",2)[2]
-                    # print(Msg)
                     fileName = "target.jpg"
                     with open(fileName,"wb") as f:
                         S =  Msg[2:].encode('utf-8')
-                        # print("printing S")
-                        # print(S[:5])
-                        # print(S[-5:])
-                        # print(S)
                         a = base64.b64decode(S)
-                        # print("printint a")
-                        # print(a[:5],"   ",a[-5:])
                         f.write(a)
                         f.close()
                     print("You have received a new image from ",msg.split("$-$")[1].split(":")[0], " stored in target.jpg")
-                    # time.sleep(10)
                     continue
             fileName = "pkeys/"+name+"/"+name+"private.pem"
             with open(fileName,"rb") as f:
                 private = rsa.PrivateKey.load_pkcs1(f.read())
-                # pr = base64.b64encode(pr)
             if ":" in msg:
                 asdf = msg.split(": ",1)[1]
                 asdf = asdf[2:-1]
                 asdf = asdf.encode().decode('unicode_escape').encode('raw_unicode_escape')
-                # print(asdf)
                 asdf  = base64.b64decode(rsa.decrypt(asdf,private)).decode()
                 fileName = "chats/"+name+".txt"
                 curr_time = datetime.datetime.now().strftime("%H:%M:%S:%f")
@@ -90,7 +77,15 @@ def receive(client,name):
                 break
 
 def receiveGroup(client,name,groupname):
-    # print("Inside recieve function")
+    """The receive module of client for groups. Receives text messages and images from group
+
+    :param client: the connection object with server
+    :type client: socket.socket
+    :param name: name of the user logged in 
+    :type name: str
+    :param groupname: name of the group
+    :type groupname: str
+    """
     while True:
         try:
             # print("$")
@@ -130,6 +125,13 @@ def receiveGroup(client,name,groupname):
                 break
 
 def menu(name,client):
+    """prints the interactive menu for the user. Acts as the front-end
+
+    :param name: name of the user logged in 
+    :type name: str
+    :param client: the connection object with server
+    :type client: socket.socket
+    """
     while True:
         for i in range(5):
             print()
@@ -144,16 +146,7 @@ def menu(name,client):
         if(choice==1):
             username = input("Enter the username with whom you wish to chat: ").strip()
             client.send(f"query_username{username}".encode())
-            # time.sleep(3)
             msg = client.recv(1024).decode()
-            # while True:
-            #     try:
-            #         print(msg," ")
-            #         if msg != "":
-            #             break
-            #     except Exception as e:
-            #         print(e)
-            #         continue
             if(msg == "incorrect"):
                 print("The entered username does not exist")
                 continue
@@ -202,11 +195,6 @@ def menu(name,client):
             grouppass = input("Enter the goup password: ").strip()
             client.send(f"create_groupname{groupname}${grouppass}".encode())
             msg = client.recv(1024).decode()
-            # while True:
-            #     print("hi")
-            #     # print(f'-- {msg}')
-            #     if msg == "group_present" or msg == "group_created":
-            #         break
             if msg == "group_present":
                 print("A group by this name already exists, please try again")
                 continue
@@ -232,9 +220,6 @@ def menu(name,client):
             password = input("Enter the password: ").strip()
             client.send(f"join_groupname{groupname}${password}".encode())
             msg = client.recv(1024).decode()
-            # while True:
-            #     if msg == "success" or msg == "No group" or msg == "already":
-            #         break
             if msg == "No group":
                 print("There is no such group")
                 continue
@@ -330,15 +315,24 @@ def menu(name,client):
             print("Please enter a valid choice!!!")
 
 def DMchatRoom(username,name,client,keyPublic):
+    """Module to send direct messages to other users
+
+    :param username: name of the user logged in sending the message
+    :type username: str
+    :param name: name of the user receiving the message
+    :type name: str
+    :param client: connection object with the server
+    :type client: str
+    :param keyPublic: encryption key for the group
+    :type keyPublic: str
+    """
     print("Enter \'/quit\' to quit this room")
     print("Enter \'/image <imgFile>\' to send an image")
     print()
     while True:
         usermsg = input().strip()
         if usermsg[:6] == "/image":
-            # print("SENDING IMAGE")
             location = usermsg[7:]
-            # print(location)
             if not os.path.exists(location):
                 print("No such file exists!")
                 continue
@@ -349,11 +343,8 @@ def DMchatRoom(username,name,client,keyPublic):
             msg_= f'{username}$-${name}: {"/image"}'
             client.send(msg_.encode())
             time.sleep(0.05)
-            # print("Sending",str(len(msg)))
             client.send(str(len(msg.split("$-$")[1])).encode())
-            # print(len(msg.split("$-$")[1]))
             time.sleep(0.05)
-            # print(msg)
             client.sendall(msg.encode())
             time.sleep(10)
             continue
@@ -369,16 +360,23 @@ def DMchatRoom(username,name,client,keyPublic):
             usermsg = rsa.encrypt(base64.b64encode(usermsg.encode()),public)
             usermsg = str(usermsg)
         msg = f'{username}$-${name}: {usermsg}'
-        # fileName = "chats/"+name+".txt"
-        # curr_time = time.time()
-        # with open(fileName,"a") as f:
-        #     f.write(f"{curr_time}-{msg}\n")
         if msg.split(": ",1)[1]=="/quit":
             client.send(msg.encode())
             return
         client.send(msg.encode())
 
 def groupchat(groupname,name,client,keyPublic):
+    """Module used to send group chat messages to groups
+
+    :param groupname: name of the group
+    :type groupname: str
+    :param name: username of the sender
+    :type name: str
+    :param client: connection object with server
+    :type client: socket.socket
+    :param keyPublic: encryption key for group
+    :type keyPublic: str
+    """
     print("Enter \'/quit\' to quit this room")
     print()
     while True:
@@ -400,15 +398,26 @@ def groupchat(groupname,name,client,keyPublic):
         client.send(msg.encode())
 
 def login(client,name,password,entry):
+    """send the login information to the server allowing the user to sign-in or sign-up
 
+    :param client: connection object with the server
+    :type client: socket.socket
+    :param name: username of the user trying to login
+    :type name: str
+    :param password: password of the account trying to login
+    :type password: str
+    :param entry: code for sign-in or sign-up
+    :type entry: int
+    :return: error code or success code
+    error_code 1: successful sign-in
+    error_code 2: incorrect password
+    error_code 3: username not found
+    error_code 4: already sign-in somewhere else
+    error_code 5: username already exists and cannot be used to make a new account
+    :rtype: int
+    """
     try:
-        # rsaKey = "pkeys/"+name+"/"+name+"private.pem"
-        # with open(rsaKey,"rb") as f:
-        #     privKey = rsa.PrivateKey.load_pkcs1(f.read())
-        # password = rsa.encrypt(base64.b64encode(password.encode()),privKey)
         msg = client.recv(2048).decode()
-        # print(msg)
-        # print(str(entry))
         if msg == "entry_type":
             client.send(str(entry).encode())
             time.sleep(0.05)
@@ -458,6 +467,8 @@ def login(client,name,password,entry):
             return (0,name)
 
 def newUser():
+    """Prints the login or sign-up menu for the user, when the application is launched
+    """
     global addr
     while True:
         while True:
@@ -481,12 +492,9 @@ def newUser():
             client.send("route".encode())
             serverPort = int(client.recv(2048).decode())
             addr = (IP, serverPort)
-            # print(addr)
             client = socket.socket(socket.AF_INET,  socket.SOCK_STREAM)
             client.connect(addr)
             error_code,name = login(client,name,password,entry)
-            # if error_code==0:
-            #     sys.exit()
             if error_code==1:
                 break
             if error_code==2 or error_code==3 or error_code==4 or error_code==5:

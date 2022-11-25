@@ -1,4 +1,4 @@
-#this is the distribution server
+#This is the load-balancing or the distribution server
 import socket
 import threading
 import time
@@ -17,6 +17,8 @@ flag = 0
 
 
 def route():
+    """Routes the clients to the servers using the groups strategy
+    """
     global loads
     global counter
     global flag
@@ -37,7 +39,6 @@ def route():
             print(f"{addr} connected")
             msg = client.recv(1024).decode()
             if msg == "route":
-                #find the minimum
                 if flag == GROUPSIZE:
                     flag = 1
                     counter = (counter +1) %  len(servers)
@@ -56,6 +57,8 @@ def route():
             continue
 
 if __name__=="__main__":
+    """Launches the load balancing server, assigns the port and calls the necessary functions
+    """
     key = Fernet.generate_key()
     fernetFile = "pkeys/fernet.key"
     with open (fernetFile,"wb") as f:

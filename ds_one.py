@@ -16,6 +16,8 @@ def getServer():
     return 0
 
 def route():
+    """Routes the clients to the servers by single server strategy
+    """
     global loads
     #Load up the servers list
     with open("port.txt",'r') as f:
@@ -34,7 +36,6 @@ def route():
             print(f"{addr} connected")
             msg = client.recv(1024).decode()
             if msg == "route":
-                #find the minimum
                 index = getServer()
                 min = str(ports[index])
                 print(min)
@@ -49,6 +50,8 @@ def route():
             continue
 
 if __name__=="__main__":
+    """Launches the load balancing server, assigns the port and calls the necessary functions
+    """
     key = Fernet.generate_key()
     fernetFile = "pkeys/fernet.key"
     with open (fernetFile,"wb") as f:
