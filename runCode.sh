@@ -47,5 +47,5 @@ fi
 #add number of clients as necessary with their own clien1 and client 2 files
 for (( i=1 ; i<=$2 ; i++ ));
 do
-    gnome-terminal -- /bin/sh -c 'python3 client2.py'
+    gnome-terminal -- /bin/sh -c 'python3 client.py'
 done

@@ -421,7 +421,7 @@ def handle(client,addr):
                 else:
                     pass
 
-            elif msg.split(": ",1)[1] == "/quit":
+            elif "/quit" in msg.split(": ",1)[1]:
                 index = clients.index(client)
                 curr.execute("DELETE FROM CHATROOMS WHERE USERNAME = %s",(names[index],))
                 if "$-$" in msg:

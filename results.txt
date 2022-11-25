@@ -1,0 +1,29 @@
+2Clients1Server
+Latency 96992.71794871795
+InputThroughput 0.9954341009527352
+OutputThroughPut 0.989467380124725
+
+2clients2serversGroups
+Latency 328301.5128205128
+InputThroughput 1.9940388732630873
+OutputThroughPut 1.9861492225271135
+
+3clients2servers1groups
+Latency 205574.7288135593
+InputThroughput 4.950748587329498
+OutputThroughPut 4.8202726897121606
+
+3clients1server1groups
+Latency 57146.60975609756
+InputThroughput 4.4561326612608665
+OutputThroughPut 4.399360093077371
+
+3clients3servers
+Latency 118359.918699187
+InputThroughput 4.4481552916640843
+OutputThroughPut 4.391886986947747
+
+10clients1Server
+Latency 32811.18936877076
+InputThroughput 25.935287279388453
+OutputThroughPut 24.882788967757143

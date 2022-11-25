@@ -8,7 +8,7 @@ def latency(path):
         length = len(lines)
         for line in lines:
             listinlist =  line.split(' ',2)
-            time += float(listinlist[0])-float(listinlist[1])
+            time += -float(listinlist[0])+float(listinlist[1])
         return time/length
         
 def create_bins(lower_bound, width, quantity):
@@ -57,12 +57,12 @@ def binner(lower_bound, width, quantity, weights_of_persons):
     frequencies = Counter(binned_weights)
 
 def throughput(list):
-    window_size = 2
-    time = 0.01
+    window_size = 20000
+    time = 100
     list.sort()
     med = statistics.median(list)
-    min_ = max(list[0],med/10)
-    max_ = min(list[-1],med*10)
+    min_ = list[0]
+    max_ = list[-1]
     sum = 0
     numberWindows = int((max_-window_size-min_)/time)
     for i in range(numberWindows):
@@ -72,7 +72,7 @@ def throughput(list):
             if c>windowstart and c<=windowstart+window_size:
                 count+=1
         sum+=count
-    return sum/(numberWindows*window_size)
+    return 1000000*sum/(numberWindows*window_size)
 
 if __name__=='__main__':
     sendTimelist = []
@@ -80,20 +80,18 @@ if __name__=='__main__':
     with open("out.txt",'r') as o:
         content = o.readlines()
         for c in content:
-            info_message = c.split('&&&',1)
-            info = info_message[0]
-            message = info_message[1]
-            receive_send = info.split(': ',1)
-            sendTime = receive_send[1]
+            info_message = c.split('-',3)
+            sendTime = info_message[0]
+            message = info_message[3]
+            receiveTime = info_message[2].split(": ",1)[1]
             sendTimelist.append(float(sendTime))
-            receiveTime  = receive_send[0].split('-',1)[0]
             receiveTimeList.append(float(receiveTime))
             f = open("outs.txt",'a')
             f.write(receiveTime.strip()+" "+sendTime.strip()+" "+message)
     print("Latency",latency("outs.txt"))
     receiveTimeList.sort()
     sendTimelist.sort()
-    width =0.01
+    #width =0.01
     # binner(receiveTimeList[0],width,int((receiveTimeList[-1]-receiveTimeList[0])/width) ,receiveTimeList)
     # binner(sendTimelist[0],width,int((sendTimelist[-1]-sendTimelist[0])/width) , sendTimelist)
     # print(sendTimelist)
