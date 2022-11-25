@@ -8,6 +8,7 @@
 5. Implementation of personal and group chats
 6. Implementation of special admin features
 7. Load balancing leading to low latency and high throughput
+8. Implemented pending messages feature
 
 ## Basic Plan
 A multi-server, multi-client system to allow chats between various clients. The basic model for the project will be as follows:
@@ -15,7 +16,7 @@ We create a program that controls a client. This program starts by calling a fun
 1. Sign Up
 2. Sign In
 
-If the user chooses to sign up, they will face one of two scenarios, either the username they choose will be unique, in which case the sign up is successful, or the username will already be taken by a different user. In this case, an error message is displayed and the user is asked to try again.
+If the user chooses to sign up, they will face one of two scenarios, either the username they choose will be unique, in which case the sign up is successful, or the username will already be taken by a different user. In this case, an error message is displayed and the user is asked to try again. When the user succesfully signs up, the username and password of the user is stored in the database. The password is encrypted using a fernet key hence securing the password.
 
 If the uesr chooses to sign in, they will enter the username and password and then face the following scenarios:
 1. Successful Log In - if the credentials match and the user is not already logged in
@@ -27,9 +28,11 @@ After a succesful sign up or sign in, the user will be taken to an infinite menu
 
 This menu will allow users to message a single other user, message a group or create/join groups. The user can also quit the program whenever required. Now, we wait for user input to carry out specific instructions.
 
-Depending on the users input, we need to send certain messages to the server to process the request. Based on what the server receives, it carries out some checks and if everything seems alright, it returns a corresponding message to the client (usually to determine the outcome of the request). In this way, we handle various kinds of client requests. The user can also send specified images to the receiver which when fetched by the receiver gets stored on their device. 
+Depending on the users input, we need to send certain messages to the server to process the request. Based on what the server receives, it carries out some checks and if everything seems alright, it returns a corresponding message to the client (usually to determine the outcome of the request). In this way, we handle various kinds of client requests.  
 
-As for sending messages between clients, we send a special message which contains information about the sender and the desired receiver. The server then uses this to ensure that the message is only sent to the desired receiver.
+As for sending messages between clients, we send a special message encrypted with the help of RSA private key of the user. This encrypted message contains information about the sender and the desired receiver. The server then uses this to ensure that the message is only sent to the desired receiver. After sending the encrypted messsage to the server, the receiver decrypts the message using the public key of sender and gets the message. This ensures end-to-end encryption of messages so that no one else is able to fetch these messages. The user can also send specified images to the receiver which when fetched by the receiver gets stored on their device.
+
+When the receiver is not present in the same chatroom as that of sender or when the receiver is offline, the encrypted message sent by the sender gets stored the database. The receiver can access these messages either by checking the pending messages from the menu or by entering the chatroom again. 
 
 ## Execution:
 ### run.sh <number of servers> <number of clients> <type of distribution server>:
@@ -38,7 +41,7 @@ This script takes three command line arguments to specify the number of servers 
 ### things.sh <type of distribution server>:
 This script is used to run the python scrypt file to check latency and throughput.
 
-## What we've done so far:
+<!-- ## What we've done so far:
 1. Implemented basic functionalities of the client and created a menu system for a user
 2. Integrated servers that work with a number of clients to efficiently receive and transmit messages
 3. Created a special server to which each client connects at first and which routes clients to other servers
@@ -56,7 +59,7 @@ This script is used to run the python scrypt file to check latency and throughpu
 
 ## Future Plans
 1. Add digital signatures for message credibility and verification
-
+ -->
 ## Team Members
 1. Aadish Sethiya
 2. Chaitanya Aggarwal
