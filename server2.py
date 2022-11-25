@@ -4,7 +4,6 @@ import time
 import psycopg2
 import datetime
 import pem
-from cryptography.fernet import Fernet
 
 IP = socket.gethostbyname(socket.gethostname())
 ADDR = (IP, 0)
@@ -57,6 +56,71 @@ def broadcast(msg, client):
                 print("REACHED")
                 print(messages[1])
                 c.send(f'{messages[1]}'.encode()) 
+            else:
+                #add to the database
+                if ":" in messages[1]:
+                    sendersName = messages[1].split(": ")[0]    
+                else:
+                    continue
+                    # sendersName = messages[1].split(" ")[0]
+                # print("SENDER",sendersName)
+
+                x = datetime.datetime.now().strftime("%X")
+                curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,receiverName,x))
+                conn.commit()
+                continue
+    if not sameServer:
+        #add to database
+        if ":" in messages[1]:
+            sendersName = messages[1].split(": ")[0]
+        else:
+            return
+            # sendersName = messages[1].split(" ")[0]
+        x = datetime.datetime.now().strftime("%X")
+        curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,receiverName,x))
+        conn.commit()
+
+def broadcastI(imMsg, size, msg,client):
+    #print(msg)
+    messages=msg.split("$-$",1)
+    #print(messages)
+    receiverName = messages[0]
+    sameServer = False
+    for c in clients:
+        index = clients.index(c)
+        if names[index] == receiverName:# and (active_chat[receiverName] == messages[1].split(": ")[0] or active_chat[receiverName] == messages[1].split(" ")[0]):
+            sameServer = True
+            curr.execute("SELECT BUDDY FROM CHATROOMS WHERE USERNAME = %s",(receiverName,))
+            l = curr.fetchall()
+            #print(l)
+            if len(l)==0:
+                #add to the database
+                if ":" in messages[1]:
+                    sendersName = messages[1].split(": ")[0]    
+                else:
+                    continue
+                    # sendersName = messages[1].split(" ")[0]
+                # print("SENDER",sendersName)
+
+                x = datetime.datetime.now().strftime("%X")
+                curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,receiverName,x))
+                conn.commit()
+                continue
+            #print(f'--- {l[0][0]}') 
+            if l[0][0] == messages[1].split(": ")[0] or l[0][0] == messages[1].split(" ")[0]:
+                print("REACHED")
+                #print(imMsg.encode())
+                #print(str(size))
+                #print(messages[1])
+                c.send(imMsg.encode())
+                print("116")
+                time.sleep(0.05)
+                c.send(str(size).encode())
+                print("118")
+                time.sleep(0.05)
+                c.sendall(f'{messages[1]}'.encode())
+                time.sleep(0.05)
+                print("120")
             else:
                 #add to the database
                 if ":" in messages[1]:
@@ -146,88 +210,17 @@ def broadcastPending(msg,client):
     client.send(msg.encode())
     time.sleep(0.05) 
 
-def broadcastI(imMsg, size, msg,client):
-    #print(msg)
-    messages=msg.split("$-$",1)
-    #print(messages)
-    receiverName = messages[0]
-    sameServer = False
-    for c in clients:
-        index = clients.index(c)
-        if names[index] == receiverName:# and (active_chat[receiverName] == messages[1].split(": ")[0] or active_chat[receiverName] == messages[1].split(" ")[0]):
-            sameServer = True
-            curr.execute("SELECT BUDDY FROM CHATROOMS WHERE USERNAME = %s",(receiverName,))
-            l = curr.fetchall()
-            #print(l)
-            if len(l)==0:
-                #add to the database
-                if ":" in messages[1]:
-                    sendersName = messages[1].split(": ")[0]    
-                else:
-                    continue
-                    # sendersName = messages[1].split(" ")[0]
-                # print("SENDER",sendersName)
-
-                x = datetime.datetime.now().strftime("%X")
-                curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,receiverName,x))
-                conn.commit()
-                continue
-            #print(f'--- {l[0][0]}') 
-            if l[0][0] == messages[1].split(": ")[0] or l[0][0] == messages[1].split(" ")[0]:
-                print("REACHED")
-                #print(imMsg.encode())
-                #print(str(size))
-                #print(messages[1])
-                c.send(imMsg.encode())
-                print("116")
-                time.sleep(0.05)
-                c.send(str(size).encode())
-                print("118")
-                time.sleep(0.05)
-                c.sendall(f'{messages[1]}'.encode())
-                time.sleep(0.05)
-                print("120")
-                print(imMsg)
-            else:
-                #add to the database
-                if ":" in messages[1]:
-                    sendersName = messages[1].split(": ")[0]    
-                else:
-                    continue
-                    # sendersName = messages[1].split(" ")[0]
-                # print("SENDER",sendersName)
-
-                x = datetime.datetime.now().strftime("%X")
-                curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,receiverName,x))
-                conn.commit()
-                continue
-    if not sameServer:
-        #add to database
-        if ":" in messages[1]:
-            sendersName = messages[1].split(": ")[0]
-        else:
-            return
-            # sendersName = messages[1].split(" ")[0]
-        x = datetime.datetime.now().strftime("%X")
-        curr.execute("INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (%s,%s,%s,%s)",(messages[1],sendersName,receiverName,x))
-        conn.commit()
-
 def handle(client,addr):
     while True:
         try:
-            try:
-                handleDB(client)
-            except:
-                continue
-            client.settimeout(0.1)
+            handleDB(client)
             try:
                 msg = client.recv(2048).decode()
             except:
                 continue
-            client.settimeout(None)
 
             print(msg)
-
+            print('\n')
             if msg[:14]=="query_username":
                 # print(5/0)
                 # time.sleep(1)
@@ -347,54 +340,20 @@ def handle(client,addr):
                     broadcastPending(msg,client)
                 time.sleep(0.05)
                 client.send("DONE".encode())
-
-            elif msg[:8] == "adminops":
-                admin = msg[8:]
-                print(admin)
-                curr.execute("SELECT GROUPNAME FROM GPS WHERE USERNAME = %s AND ISADMIN = 1",(admin,))
-                l = curr.fetchall()
-                print(l)
-                if(len(l)==0):
-                    client.send("noGroups".encode())
-                else:
-                    groupList = ""
-                    for group in l:
-                        groupList+=group[0]+"$"
-                    groupList = groupList[:-1]
-                    print(groupList)
-                    client.send(groupList.encode())
-                    choice = client.recv(1024).decode()
-                    if choice == "!@#$%":
-                        continue
-                    else:
-                        groupchoice = choice.split("!@#")[0]
-                        userchoice = choice.split("!@#")[1]
-                        curr.execute("SELECT USERNAME FROM GPS WHERE GROUPNAME = %s AND USERNAME = %s",(groupchoice,userchoice))
-                        if(len(curr.fetchall())==0):
-                            client.send("No such User".endcode())
-                            continue
-                        else:
-                            curr.execute("DELETE FROM GPS WHERE GROUPNAME = %s AND USERNAME = %s",(groupchoice,userchoice))
-                            conn.commit()
-                            client.send("successfully removed".encode())
-
             elif msg.split(": ",1)[1] == "/image":
                 print("****REC IMAGES*******")
-                length = int(client.recv(2048).decode())
+                length = int(str(client.recv(2048).decode()))
                 print(length)
                 Msg = ""
-                while ( len(Msg)<length ):
+                while ( len(str(Msg))<length ):
                     print(len(Msg))
                     Msg=Msg+client.recv(2048).decode()
                 print(Msg)
                 print(len(Msg))
-                print(msg)
                 if("$-$" in Msg):
                     broadcastI(msg,length,Msg,client)
                 else:
-                    # broadcastGroupI(msg,length,Msg,client)
-                    pass
-
+                    broadcastGroupI(msg,length,Msg,client)
             elif msg.split(": ",1)[1] == "/quit":
                 # print(msg.split(": ",1)[1] == "/quit")
                 # index = clients.index(client)
@@ -429,9 +388,7 @@ def handle(client,addr):
 def handleDB(client):
     name = names[clients.index(client)]
     #finding name's buddy
-    # print("executing")
     curr.execute("SELECT BUDDY FROM CHATROOMS WHERE USERNAME = %s",(name,))
-    # print("it worked")
     buddy = curr.fetchall()
     if len(buddy) == 0:
         pass
@@ -449,7 +406,7 @@ def receive():
         try:
             client, addr = server.accept()
             # client.setblocking(0)
-            # client.settimeout(10)
+            client.settimeout(10)
             print(f"{addr} connected")
             client.send("entry_type".encode())
             entry = client.recv(1024).decode()
@@ -482,11 +439,6 @@ def receive():
                     #active_chat[name] = None
                     client.send("Successfully signed up!".encode())
                     keyPublic = client.recv(1024).decode()
-                    fernetFile = "pkeys/fernet.key"
-                    key = open(fernetFile,"rb").read()
-                    password = password.encode()
-                    x = Fernet(key)
-                    password = str(x.encrypt(password))
                     curr.execute("INSERT INTO CREDS (USERNAME, PASSWORD, PUBLICKEY) VALUES (%s,%s,%s)",(str(name), str(password), keyPublic))
                     curr.execute("INSERT INTO SERVERS (USERNAME, PORTS) VALUES (%s,%s)",(str(name),int(PORT)))
                     conn.commit()
@@ -497,14 +449,9 @@ def receive():
                 if len(name_) == 1:
                     print(1)
                     curr.execute("SELECT PASSWORD FROM CREDS WHERE USERNAME=%s",(name,))
-                    pass_ = curr.fetchall()[0][0]
+                    pass_ = curr.fetchone()[0]
                     # print(pass_)
-                    pass_ = pass_[2:-1].encode()
-                    print(pass_)
-                    key = open("pkeys/fernet.key","rb").read()
-                    x = Fernet(key)
-                    pass_ = x.decrypt(pass_).decode()
-                    print("password",pass_)
+                    pass_ = pass_.strip()
                     if pass_ == password:
                         #if login[name] == password:
                         # index = names.index(name)

@@ -30,36 +30,23 @@ def receive(client,name):
                 continue
             if(msg == "%$#quitReceive"):
                 return
-            if ": " in msg:
-                if msg.split(": ",1)[1] == "/image":
-                    # print("****REC IMAGES*******")
-                    length = int(str(client.recv(2048).decode()))
-                    # print(length)
-                    Msg = ""
-                    while ( len(Msg)<length ):
-                        a = client.recv(2048).decode()
-                        time.sleep(0.01)
-                        # print(a[-5:])
-                        Msg=Msg+a
-                    time.sleep(0.05)
-                    # print(3)
-                    Msg = Msg.split(": ",2)[2]
-                    # print(Msg)
-                    fileName = "target.jpg"
-                    with open(fileName,"wb") as f:
-                        S =  Msg[2:].encode('utf-8')
-                        # print("printing S")
-                        # print(S[:5])
-                        # print(S[-5:])
-                        # print(S)
-                        a = base64.b64decode(S)
-                        # print("printint a")
-                        # print(a[:5],"   ",a[-5:])
-                        f.write(a)
-                        f.close()
-                    print("You have received a new image from ",msg.split("$-$")[1].split(":")[0], " stored in target.jpg")
-                    # time.sleep(10)
-                    continue
+            if msg.split(": ",1)[1] == "/image":
+                print("****REC IMAGES*******")
+                length = int(str(client.recv(2048).decode()))
+                print(length)
+                Msg = ""
+                i = 0
+                while ( len(str(Msg))<length ):
+                    a = client.recv(2048).decode()
+                    time.sleep(0.01)
+                    print(a[-5:])
+                    Msg=Msg+a
+                    i=i+1
+                time.sleep(0.05)
+                print(3)
+                print(Msg,3)
+                time.sleep(10)
+                break
             fileName = "pkeys/"+name+"/"+name+"private.pem"
             with open(fileName,"rb") as f:
                 private = rsa.PrivateKey.load_pkcs1(f.read())
@@ -123,7 +110,6 @@ def menu(name,client):
         print("Create a group - 4")
         print("Join a group - 5")
         print("View pending messages - 6")
-        print("Remove Group Participants(admins only) - 7")
         choice = int(input("Enter your choice:- ").strip())
         if(choice==1):
             username = input("Enter the username with whom you wish to chat: ").strip()
@@ -277,52 +263,18 @@ def menu(name,client):
                         continue
                 except Exception as e:
                     print(e)
-
-        elif choice == 7:
-            client.send(("adminops"+name).encode())
-            groupList = client.recv(1024).decode()
-            print(groupList)
-            if(groupList=="noGroups"):
-                print("You are not an admin of any groups")
-                continue
-            else:
-                groups = groupList.split("$")
-                choice = 1
-                for group in groups:
-                    print(str(choice)+". "+group)
-                choice = int(input("Select one of the above groups"))
-                if(choice<=len(groups) and choice >0):
-                    group = groups[choice-1]
-                    user = input("Enter the username to be removed from the chosen group")
-                    group = group +"!@#"+user
-                    client.send(group.encode())
-                    e = client.recv(1024).decode()
-                    if(e=="No such User"):
-                        print(e)
-                        continue
-                    else:
-                        print("Successfully removed")
-                else:
-                    client.send("!@#$%".encode())
-                    print("Invalid Input")
-                    continue
-
+                
         else:
             print("Please enter a valid choice!!!")
 
 def DMchatRoom(username,name,client,keyPublic):
     print("Enter \'/quit\' to quit this room")
-    print("Enter \'/image <imgFile>\' to send an image")
     print()
     while True:
         usermsg = input().strip()
-        if usermsg[:6] == "/image":
-            # print("SENDING IMAGE")
-            location = usermsg[7:]
-            # print(location)
-            if not os.path.exists(location):
-                print("No such file exists!")
-                continue
+        if usermsg == "/image":
+            print("SENDING IMAGE")
+            location = input("Enter file location")
             with open(location,"rb") as image:
                 a = str(base64.b64encode(image.read()))
                 usermsg = usermsg+": "+a
@@ -330,16 +282,15 @@ def DMchatRoom(username,name,client,keyPublic):
             msg_= f'{username}$-${name}: {"/image"}'
             client.send(msg_.encode())
             time.sleep(0.05)
-            # print("Sending",str(len(msg)))
-            client.send(str(len(msg.split("$-$")[1])).encode())
-            # print(len(msg.split("$-$")[1]))
+            print("Sending",str(len(msg)))
+            client.send(str(len(msg)).encode())
+            print(len(str(msg)))
             time.sleep(0.05)
-            # print(msg)
+            print(msg)
             client.sendall(msg.encode())
             time.sleep(0.05)
             continue
         elif usermsg != "/quit":
-
             fileName = "pkeys/"+username+"/"+username + "public.pem"
             with open(fileName,"w") as f:
                 f.write(keyPublic)
@@ -379,10 +330,6 @@ def groupchat(groupname,name,client,keyPublic):
 def login(client,name,password,entry):
 
     try:
-        # rsaKey = "pkeys/"+name+"/"+name+"private.pem"
-        # with open(rsaKey,"rb") as f:
-        #     privKey = rsa.PrivateKey.load_pkcs1(f.read())
-        # password = rsa.encrypt(base64.b64encode(password.encode()),privKey)
         msg = client.recv(2048).decode()
         # print(msg)
         # print(str(entry))
