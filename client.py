@@ -502,4 +502,5 @@ def newUser():
 
         menu(name,client)
 
-newUser()
+if __name__=="__main__":    
+    newUser()

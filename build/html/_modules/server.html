@@ -1,0 +1,658 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>server &#8212; FastChat  documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for server</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">socket</span>
+<span class="kn">import</span> <span class="nn">threading</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">psycopg2</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">pem</span>
+<span class="kn">from</span> <span class="nn">cryptography.fernet</span> <span class="kn">import</span> <span class="n">Fernet</span>
+
+<span class="n">IP</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">gethostbyname</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">gethostname</span><span class="p">())</span>
+<span class="n">ADDR</span> <span class="o">=</span> <span class="p">(</span><span class="n">IP</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="n">QUIT</span> <span class="o">=</span> <span class="s2">&quot;!quit&quot;</span>
+
+<span class="n">server</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">AF_INET</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">SOCK_STREAM</span><span class="p">)</span>
+<span class="n">server</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">ADDR</span><span class="p">)</span>
+<span class="n">PORT</span> <span class="o">=</span> <span class="n">server</span><span class="o">.</span><span class="n">getsockname</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;port.txt&quot;</span><span class="p">,</span><span class="s1">&#39;a&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">PORT</span><span class="p">))</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+<span class="n">server</span><span class="o">.</span><span class="n">listen</span><span class="p">()</span>
+
+<span class="n">clients</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">names</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">login</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">groups</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">active_chat</span> <span class="o">=</span> <span class="p">{}</span>
+
+<div class="viewcode-block" id="broadcast"><a class="viewcode-back" href="../server.html#server.broadcast">[docs]</a><span class="k">def</span> <span class="nf">broadcast</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">client</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Sends the personal message to clients</span>
+
+<span class="sd">    :param msg: the message content</span>
+<span class="sd">    :type msg: str</span>
+<span class="sd">    :param client: connection object with the receiving client</span>
+<span class="sd">    :type client: socket.socket</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="n">messages</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;$-$&quot;</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">messages</span><span class="p">)</span>
+    <span class="n">receiverName</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">sameServer</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">clients</span><span class="p">:</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">clients</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">names</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">==</span> <span class="n">receiverName</span><span class="p">:</span><span class="c1"># and (active_chat[receiverName] == messages[1].split(&quot;: &quot;)[0] or active_chat[receiverName] == messages[1].split(&quot; &quot;)[0]):</span>
+            <span class="n">sameServer</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT BUDDY FROM CHATROOMS WHERE USERNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">receiverName</span><span class="p">,))</span>
+            <span class="n">l</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">l</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s2">&quot;:&quot;</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">sendersName</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;: &quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>    
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">continue</span>
+
+                <span class="n">x</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%X</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">sendersName</span><span class="p">,</span><span class="n">receiverName</span><span class="p">,</span><span class="n">x</span><span class="p">))</span>
+                <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                <span class="k">continue</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;--- </span><span class="si">{</span><span class="n">l</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span> 
+            <span class="k">if</span> <span class="n">l</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;: &quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">or</span> <span class="n">l</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;REACHED&quot;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="n">c</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span> 
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s2">&quot;:&quot;</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">sendersName</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;: &quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>    
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">continue</span>
+
+                <span class="n">x</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%X</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">sendersName</span><span class="p">,</span><span class="n">receiverName</span><span class="p">,</span><span class="n">x</span><span class="p">))</span>
+                <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                <span class="k">continue</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">sameServer</span><span class="p">:</span>
+        <span class="c1">#add to database</span>
+        <span class="k">if</span> <span class="s2">&quot;:&quot;</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">sendersName</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;: &quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span>
+            <span class="c1"># sendersName = messages[1].split(&quot; &quot;)[0]</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%X</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">sendersName</span><span class="p">,</span><span class="n">receiverName</span><span class="p">,</span><span class="n">x</span><span class="p">))</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="broadcastGroup"><a class="viewcode-back" href="../server.html#server.broadcastGroup">[docs]</a><span class="k">def</span> <span class="nf">broadcastGroup</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span><span class="n">client</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Module used to send text messages to group-members</span>
+
+<span class="sd">    :param msg: message content</span>
+<span class="sd">    :type msg: str</span>
+<span class="sd">    :param client: list of connection objects with clients</span>
+<span class="sd">    :type client: list</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="n">messages</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;$%$&quot;</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">groupname</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT USERNAME FROM GPS WHERE GROUPNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">groupname</span><span class="p">,))</span>
+    <span class="n">l</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">user</span> <span class="ow">in</span> <span class="n">l</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="n">names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">user</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="n">clients</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+            <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT BUDDY FROM CHATROOMS WHERE USERNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">user</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+            <span class="n">buddy</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">buddy</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="n">client</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">buddy</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1">#add to database</span>
+                <span class="k">if</span> <span class="s2">&quot;:&quot;</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">sendersName</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;: &quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>   
+                    <span class="n">sendersName</span> <span class="o">=</span> <span class="n">sendersName</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;(&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">][:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> 
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                    <span class="c1"># sendersName = messages[1].split(&quot; &quot;)[0]</span>
+                <span class="c1"># print(&quot;SENDER&quot;,sendersName)</span>
+
+                <span class="n">x</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%X</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">sendersName</span><span class="p">,</span><span class="n">user</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">x</span><span class="p">))</span>
+                <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">buddy</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">groupname</span><span class="p">:</span>
+                <span class="n">c</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1">#add to database</span>
+                <span class="k">if</span> <span class="s2">&quot;:&quot;</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">sendersName</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;: &quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> 
+                    <span class="n">sendersName</span> <span class="o">=</span> <span class="n">sendersName</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;(&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">][:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>    
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                    <span class="c1"># sendersName = messages[1].split(&quot; &quot;)[0]</span>
+                <span class="c1"># print(&quot;SENDER&quot;,sendersName)</span>
+
+                <span class="n">x</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%X</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">sendersName</span><span class="p">,</span><span class="n">user</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">x</span><span class="p">))</span>
+                <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                <span class="k">continue</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="c1">#add to database</span>
+            <span class="k">if</span> <span class="s2">&quot;:&quot;</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="n">sendersName</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;: &quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>   
+                <span class="n">sendersName</span> <span class="o">=</span> <span class="n">sendersName</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;(&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">][:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> 
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">sendersName</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="c1"># print(&quot;SENDER&quot;,sendersName)</span>
+
+            <span class="n">x</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%X</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">sendersName</span><span class="p">,</span><span class="n">user</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">x</span><span class="p">))</span>
+            <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+            <span class="k">continue</span></div>
+
+<div class="viewcode-block" id="broadcastPending"><a class="viewcode-back" href="../server.html#server.broadcastPending">[docs]</a><span class="k">def</span> <span class="nf">broadcastPending</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span><span class="n">client</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Helper function</span>
+
+<span class="sd">    :param msg: the message content</span>
+<span class="sd">    :type msg: str</span>
+<span class="sd">    :param client: connection object with the client</span>
+<span class="sd">    :type client: socket.socket</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">==</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.05</span><span class="p">)</span> </div>
+
+<div class="viewcode-block" id="broadcastI"><a class="viewcode-back" href="../server.html#server.broadcastI">[docs]</a><span class="k">def</span> <span class="nf">broadcastI</span><span class="p">(</span><span class="n">imMsg</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span><span class="n">client</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Module to send images as personal message to users</span>
+
+<span class="sd">    :param imMsg: send the /image message to client, notifying it that an image is to be received</span>
+<span class="sd">    :type imMsg: str</span>
+<span class="sd">    :param size: size of imMsg</span>
+<span class="sd">    :type size: int</span>
+<span class="sd">    :param msg: the image data encoded into string</span>
+<span class="sd">    :type msg: str</span>
+<span class="sd">    :param client: connection object with the client</span>
+<span class="sd">    :type client: socket.socket</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">messages</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;$-$&quot;</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">receiverName</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">sameServer</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">clients</span><span class="p">:</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">clients</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">names</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">==</span> <span class="n">receiverName</span><span class="p">:</span><span class="c1"># and (active_chat[receiverName] == messages[1].split(&quot;: &quot;)[0] or active_chat[receiverName] == messages[1].split(&quot; &quot;)[0]):</span>
+            <span class="n">sameServer</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT BUDDY FROM CHATROOMS WHERE USERNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">receiverName</span><span class="p">,))</span>
+            <span class="n">l</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+                <span class="c1">#add to the database</span>
+                <span class="k">if</span> <span class="s2">&quot;:&quot;</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">sendersName</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;: &quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>    
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                    <span class="c1"># sendersName = messages[1].split(&quot; &quot;)[0]</span>
+                <span class="c1"># print(&quot;SENDER&quot;,sendersName)</span>
+
+                <span class="n">x</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%X</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">sendersName</span><span class="p">,</span><span class="n">receiverName</span><span class="p">,</span><span class="n">x</span><span class="p">))</span>
+                <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">l</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;: &quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">or</span> <span class="n">l</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;REACHED&quot;</span><span class="p">)</span>
+                <span class="n">c</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">imMsg</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;116&quot;</span><span class="p">)</span>
+                <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.05</span><span class="p">)</span>
+                <span class="n">c</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">size</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;118&quot;</span><span class="p">)</span>
+                <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.05</span><span class="p">)</span>
+                <span class="n">c</span><span class="o">.</span><span class="n">sendall</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.05</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;120&quot;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">imMsg</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1">#add to the database</span>
+                <span class="k">if</span> <span class="s2">&quot;:&quot;</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">sendersName</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;: &quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>    
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                    <span class="c1"># sendersName = messages[1].split(&quot; &quot;)[0]</span>
+                <span class="c1"># print(&quot;SENDER&quot;,sendersName)</span>
+
+                <span class="n">x</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%X</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">sendersName</span><span class="p">,</span><span class="n">receiverName</span><span class="p">,</span><span class="n">x</span><span class="p">))</span>
+                <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                <span class="k">continue</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">sameServer</span><span class="p">:</span>
+        <span class="c1">#add to database</span>
+        <span class="k">if</span> <span class="s2">&quot;:&quot;</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">sendersName</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;: &quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%X</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO MESSAGES (CONTENT, SENDER, RECEIVER, TIME) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="n">messages</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">sendersName</span><span class="p">,</span><span class="n">receiverName</span><span class="p">,</span><span class="n">x</span><span class="p">))</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="handle"><a class="viewcode-back" href="../server.html#server.handle">[docs]</a><span class="k">def</span> <span class="nf">handle</span><span class="p">(</span><span class="n">client</span><span class="p">,</span><span class="n">addr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;module which receives messages and signals from the user</span>
+
+<span class="sd">    :param client: connection object with the client</span>
+<span class="sd">    :type client: socket.socket</span>
+<span class="sd">    :param addr: address of the client</span>
+<span class="sd">    :type addr: int</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">handleDB</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">client</span><span class="o">.</span><span class="n">settimeout</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">2048</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">client</span><span class="o">.</span><span class="n">settimeout</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+
+            <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">msg</span><span class="p">[:</span><span class="mi">14</span><span class="p">]</span><span class="o">==</span><span class="s2">&quot;query_username&quot;</span><span class="p">:</span>
+                <span class="c1"># print(5/0)</span>
+                <span class="c1"># time.sleep(1)</span>
+                <span class="n">receiver</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="mi">14</span><span class="p">:]</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT USERNAME FROM CREDS WHERE USERNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">receiver</span><span class="p">,))</span>
+                <span class="n">target</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+                <span class="k">if</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">target</span><span class="p">)</span><span class="o">==</span><span class="mi">1</span><span class="p">):</span>
+                    <span class="n">index</span> <span class="o">=</span> <span class="n">clients</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+                    <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO CHATROOMS (USERNAME, BUDDY) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="n">names</span><span class="p">[</span><span class="n">index</span><span class="p">],</span><span class="n">receiver</span><span class="p">))</span>
+                    <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                    <span class="c1"># active_chat[names[index]] = msg[14:]</span>
+                    <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT PUBLICKEY FROM CREDS WHERE USERNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">receiver</span><span class="p">,))</span>
+                    <span class="n">keyPublic</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">keyPublic</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>  
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;c&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;incorrect&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>  
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;ic&quot;</span><span class="p">)</span>
+            
+            <span class="k">elif</span> <span class="n">msg</span> <span class="o">==</span> <span class="s2">&quot;logged_out&quot;</span><span class="p">:</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="n">clients</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;DELETE FROM SERVERS WHERE USERNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">names</span><span class="p">[</span><span class="n">index</span><span class="p">]))</span>
+                <span class="n">clients</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+                <span class="n">names</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">names</span><span class="p">[</span><span class="n">index</span><span class="p">])</span>
+                <span class="n">client</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                <span class="k">break</span>
+            
+            <span class="k">elif</span> <span class="n">msg</span><span class="p">[:</span><span class="mi">16</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;create_groupname&quot;</span><span class="p">:</span>
+                <span class="n">groupinfo</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="mi">16</span><span class="p">:]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;$&quot;</span><span class="p">)</span>
+                <span class="n">groupname</span> <span class="o">=</span> <span class="n">groupinfo</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">grouppass</span> <span class="o">=</span> <span class="n">groupinfo</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT GROUPNAME FROM GPS WHERE GROUPNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">groupname</span><span class="p">,))</span>
+                <span class="n">l</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)</span><span class="o">!=</span><span class="mi">0</span><span class="p">:</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;group_present&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;group_created&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                    <span class="n">pkey</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+                    <span class="n">index</span> <span class="o">=</span> <span class="n">clients</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+                    <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO GPS (GROUPNAME,USERNAME,PASSWORD,ISADMIN,PUBLICKEY) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="n">groupname</span><span class="p">,</span><span class="n">names</span><span class="p">[</span><span class="n">index</span><span class="p">],</span><span class="n">grouppass</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">pkey</span><span class="p">))</span>
+                    <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+            
+            <span class="k">elif</span> <span class="n">msg</span><span class="p">[:</span><span class="mi">15</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;check_groupname&quot;</span><span class="p">:</span>
+                <span class="n">groupname</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="mi">15</span><span class="p">:]</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT GROUPNAME FROM GPS WHERE GROUPNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">groupname</span><span class="p">,))</span>
+                <span class="n">l</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)</span><span class="o">!=</span><span class="mi">0</span><span class="p">:</span>
+                    <span class="n">index</span> <span class="o">=</span> <span class="n">clients</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT USERNAME FROM GPS WHERE GROUPNAME = </span><span class="si">%s</span><span class="s2"> AND USERNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">groupname</span><span class="p">,</span><span class="n">names</span><span class="p">[</span><span class="n">index</span><span class="p">]))</span>
+                        <span class="n">present</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">present</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;not in group&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO CHATROOMS (USERNAME, BUDDY) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="n">names</span><span class="p">[</span><span class="n">index</span><span class="p">],</span><span class="n">groupname</span><span class="p">))</span>
+                            <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                            <span class="c1"># print(&quot;hii&quot;)</span>
+                            <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT PUBLICKEY FROM GPS WHERE GROUPNAME = </span><span class="si">%s</span><span class="s2"> AND ISADMIN = 1&quot;</span><span class="p">,(</span><span class="n">groupname</span><span class="p">,))</span>
+                            <span class="n">l</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                            <span class="n">pubkey</span> <span class="o">=</span> <span class="n">l</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                            <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">pubkey</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+                        <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s1">&#39;group_present&#39;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;no group&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+            
+            <span class="k">elif</span> <span class="n">msg</span><span class="p">[:</span><span class="mi">14</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;join_groupname&quot;</span><span class="p">:</span>
+                <span class="n">groupinfo</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="mi">14</span><span class="p">:]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;$&quot;</span><span class="p">)</span>
+                <span class="n">groupname</span> <span class="o">=</span> <span class="n">groupinfo</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">grouppass</span> <span class="o">=</span> <span class="n">groupinfo</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT * FROM GPS WHERE GROUPNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">groupname</span><span class="p">,))</span>
+                <span class="n">l</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)</span><span class="o">!=</span><span class="mi">0</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">l</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">2</span><span class="p">]</span> <span class="o">!=</span> <span class="n">grouppass</span><span class="p">:</span>
+                        <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;Incorrect_pass&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">index</span> <span class="o">=</span> <span class="n">clients</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+                        <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT * FROM GPS WHERE GROUPNAME = </span><span class="si">%s</span><span class="s2"> AND USERNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">groupname</span><span class="p">,</span><span class="n">names</span><span class="p">[</span><span class="n">index</span><span class="p">]))</span>
+                        <span class="n">l</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)</span><span class="o">!=</span><span class="mi">0</span><span class="p">:</span>
+                            <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;already&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;success&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                            <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT USERNAME FROM GPS WHERE ISADMIN = 1 AND GROUPNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">groupname</span><span class="p">,))</span>
+                            <span class="n">l</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                            <span class="n">admin</span> <span class="o">=</span> <span class="n">l</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                            <span class="n">fileName</span> <span class="o">=</span> <span class="s2">&quot;pkeys/&quot;</span><span class="o">+</span><span class="n">admin</span><span class="o">+</span><span class="s2">&quot;/&quot;</span><span class="o">+</span><span class="n">groupname</span><span class="o">+</span><span class="s2">&quot;private.pem&quot;</span>
+                            <span class="n">privKey</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">pem</span><span class="o">.</span><span class="n">parse_file</span><span class="p">(</span><span class="n">fileName</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+                            <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">privKey</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                            <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO GPS (GROUPNAME,USERNAME,PASSWORD,ISADMIN) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="n">groupname</span><span class="p">,</span><span class="n">names</span><span class="p">[</span><span class="n">index</span><span class="p">],</span><span class="n">grouppass</span><span class="p">,</span><span class="mi">0</span><span class="p">))</span>
+                            <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;No group&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+            
+            <span class="k">elif</span> <span class="n">msg</span><span class="p">[:</span><span class="mi">12</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;queryPending&quot;</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="mi">12</span><span class="p">:]</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT DISTINCT SENDER FROM MESSAGES WHERE RECEIVER = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">name</span><span class="p">,))</span>
+                <span class="n">senders</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">senders</span><span class="p">)</span>
+                <span class="k">if</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">senders</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;no_message&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                    <span class="k">continue</span>
+                <span class="n">senderMsg</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+                <span class="k">for</span> <span class="n">sender</span> <span class="ow">in</span> <span class="n">senders</span><span class="p">:</span>
+                    <span class="n">senderMsg</span> <span class="o">+=</span> <span class="n">sender</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;$&quot;</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">senderMsg</span><span class="p">)</span>
+                <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">senderMsg</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT CONTENT FROM MESSAGES WHERE SENDER = </span><span class="si">%s</span><span class="s2"> AND RECEIVER = </span><span class="si">%s</span><span class="s2"> ORDER BY TIME&quot;</span><span class="p">,(</span><span class="n">msg</span><span class="p">,</span><span class="n">name</span><span class="p">))</span>
+                <span class="n">msgs</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;DELETE FROM MESSAGES WHERE SENDER = </span><span class="si">%s</span><span class="s2"> AND RECEIVER = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">msg</span><span class="p">,</span><span class="n">name</span><span class="p">))</span>
+                <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                <span class="k">for</span> <span class="n">msgTuple</span> <span class="ow">in</span> <span class="n">msgs</span><span class="p">:</span>
+                    <span class="n">msg</span> <span class="o">=</span> <span class="n">msgTuple</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="n">broadcastPending</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span><span class="n">client</span><span class="p">)</span>
+                <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.05</span><span class="p">)</span>
+                <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;DONE&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+
+            <span class="k">elif</span> <span class="n">msg</span><span class="p">[:</span><span class="mi">8</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;adminops&quot;</span><span class="p">:</span>
+                <span class="n">admin</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="mi">8</span><span class="p">:]</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">admin</span><span class="p">)</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT GROUPNAME FROM GPS WHERE USERNAME = </span><span class="si">%s</span><span class="s2"> AND ISADMIN = 1&quot;</span><span class="p">,(</span><span class="n">admin</span><span class="p">,))</span>
+                <span class="n">l</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">l</span><span class="p">)</span>
+                <span class="k">if</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">):</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;noGroups&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">groupList</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+                    <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">l</span><span class="p">:</span>
+                        <span class="n">groupList</span><span class="o">+=</span><span class="n">group</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;$&quot;</span>
+                    <span class="n">groupList</span> <span class="o">=</span> <span class="n">groupList</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="n">groupList</span><span class="p">)</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">groupList</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                    <span class="n">choice</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">choice</span> <span class="o">==</span> <span class="s2">&quot;!@#$%&quot;</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">groupchoice</span> <span class="o">=</span> <span class="n">choice</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;!@#&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="n">userchoice</span> <span class="o">=</span> <span class="n">choice</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;!@#&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+                        <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT USERNAME FROM GPS WHERE GROUPNAME = </span><span class="si">%s</span><span class="s2"> AND USERNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">groupchoice</span><span class="p">,</span><span class="n">userchoice</span><span class="p">))</span>
+                        <span class="k">if</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">())</span><span class="o">==</span><span class="mi">0</span><span class="p">):</span>
+                            <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;No such User&quot;</span><span class="o">.</span><span class="n">endcode</span><span class="p">())</span>
+                            <span class="k">continue</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;DELETE FROM GPS WHERE GROUPNAME = </span><span class="si">%s</span><span class="s2"> AND USERNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">groupchoice</span><span class="p">,</span><span class="n">userchoice</span><span class="p">))</span>
+                            <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                            <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;successfully removed&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+
+            <span class="k">elif</span> <span class="n">msg</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;: &quot;</span><span class="p">,</span><span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;/image&quot;</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;****REC IMAGES*******&quot;</span><span class="p">)</span>
+                <span class="n">length</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">2048</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">())</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">length</span><span class="p">)</span>
+                <span class="n">Msg</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+                <span class="k">while</span> <span class="p">(</span> <span class="nb">len</span><span class="p">(</span><span class="n">Msg</span><span class="p">)</span><span class="o">&lt;</span><span class="n">length</span> <span class="p">):</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Msg</span><span class="p">))</span>
+                    <span class="n">Msg</span><span class="o">=</span><span class="n">Msg</span><span class="o">+</span><span class="n">client</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">2048</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">Msg</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Msg</span><span class="p">))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+                <span class="k">if</span><span class="p">(</span><span class="s2">&quot;$-$&quot;</span> <span class="ow">in</span> <span class="n">Msg</span><span class="p">):</span>
+                    <span class="n">broadcastI</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span><span class="n">length</span><span class="p">,</span><span class="n">Msg</span><span class="p">,</span><span class="n">client</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">pass</span>
+
+            <span class="k">elif</span> <span class="n">msg</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;: &quot;</span><span class="p">,</span><span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;/quit&quot;</span><span class="p">:</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="n">clients</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;DELETE FROM CHATROOMS WHERE USERNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">names</span><span class="p">[</span><span class="n">index</span><span class="p">],))</span>
+                <span class="k">if</span> <span class="s2">&quot;$-$&quot;</span> <span class="ow">in</span> <span class="n">msg</span><span class="p">:</span>
+                    <span class="n">broadcast</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;$-$&#39;</span><span class="p">,</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">$-$</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;$-$&#39;</span><span class="p">,</span><span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;: &#39;</span><span class="p">,</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> left&quot;</span><span class="p">,</span><span class="kc">None</span><span class="p">)</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;%$#quitReceive&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">broadcastGroup</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;$%$&#39;</span><span class="p">,</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">$%$</span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;$%$&#39;</span><span class="p">,</span><span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;(&#39;</span><span class="p">,</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> left&quot;</span><span class="p">,</span><span class="kc">None</span><span class="p">)</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;%$#quitReceive&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                <span class="k">continue</span>
+            
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span><span class="p">(</span><span class="s2">&quot;$-$&quot;</span> <span class="ow">in</span> <span class="n">msg</span><span class="p">):</span>
+                    <span class="n">broadcast</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span><span class="n">client</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">broadcastGroup</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span><span class="n">client</span><span class="p">)</span>
+                
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">........&quot;</span><span class="p">)</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="n">clients</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+            <span class="n">client</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">break</span></div>
+
+<div class="viewcode-block" id="handleDB"><a class="viewcode-back" href="../server.html#server.handleDB">[docs]</a><span class="k">def</span> <span class="nf">handleDB</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;used to insert, retrieve and delete messages when the user is offline</span>
+
+<span class="sd">    :param client: connection object with the client</span>
+<span class="sd">    :type client: socket.socket</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">names</span><span class="p">[</span><span class="n">clients</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">client</span><span class="p">)]</span>
+    <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT BUDDY FROM CHATROOMS WHERE USERNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">name</span><span class="p">,))</span>
+    <span class="n">buddy</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">buddy</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">buddy</span> <span class="o">=</span> <span class="n">buddy</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT CONTENT FROM MESSAGES WHERE RECEIVER = </span><span class="si">%s</span><span class="s2"> AND SENDER = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">name</span><span class="p">,</span><span class="n">buddy</span><span class="p">))</span>
+        <span class="n">msgs</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+        <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;DELETE FROM MESSAGES WHERE RECEIVER = </span><span class="si">%s</span><span class="s2"> AND SENDER = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">name</span><span class="p">,</span><span class="n">buddy</span><span class="p">))</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">msg</span> <span class="ow">in</span> <span class="n">msgs</span><span class="p">:</span>
+            <span class="n">broadcastPending</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">client</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="receive"><a class="viewcode-back" href="../server.html#server.receive">[docs]</a><span class="k">def</span> <span class="nf">receive</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;handles the login information and password from the user </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">client</span><span class="p">,</span> <span class="n">addr</span> <span class="o">=</span> <span class="n">server</span><span class="o">.</span><span class="n">accept</span><span class="p">()</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">addr</span><span class="si">}</span><span class="s2"> connected&quot;</span><span class="p">)</span>
+            <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;entry_type&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+            <span class="n">entry</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+            <span class="n">password</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT USERNAME FROM CREDS WHERE USERNAME = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">name</span><span class="p">,))</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">())</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;Username by this account already exists, try signing in!&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                    <span class="k">continue</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="n">password</span><span class="p">)</span>
+                    <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+                    <span class="n">clients</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;Successfully signed up!&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                    <span class="n">keyPublic</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+                    <span class="n">fernetFile</span> <span class="o">=</span> <span class="s2">&quot;pkeys/fernet.key&quot;</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">fernetFile</span><span class="p">,</span><span class="s2">&quot;rb&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+                    <span class="n">password</span> <span class="o">=</span> <span class="n">password</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+                    <span class="n">x</span> <span class="o">=</span> <span class="n">Fernet</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                    <span class="n">password</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">encrypt</span><span class="p">(</span><span class="n">password</span><span class="p">))</span>
+                    <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO CREDS (USERNAME, PASSWORD, PUBLICKEY) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">password</span><span class="p">),</span> <span class="n">keyPublic</span><span class="p">))</span>
+                    <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO SERVERS (USERNAME, PORTS) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">),</span><span class="nb">int</span><span class="p">(</span><span class="n">PORT</span><span class="p">)))</span>
+                    <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT USERNAME FROM CREDS WHERE USERNAME=</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">name</span><span class="p">,))</span>
+                <span class="n">name_</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                <span class="c1"># name_ = name_.strip()</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">name_</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+                    <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT PASSWORD FROM CREDS WHERE USERNAME=</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">name</span><span class="p">,))</span>
+                    <span class="n">pass_</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="c1"># print(pass_)</span>
+                    <span class="n">pass_</span> <span class="o">=</span> <span class="n">pass_</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="n">pass_</span><span class="p">)</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;pkeys/fernet.key&quot;</span><span class="p">,</span><span class="s2">&quot;rb&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+                    <span class="n">x</span> <span class="o">=</span> <span class="n">Fernet</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                    <span class="n">pass_</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">decrypt</span><span class="p">(</span><span class="n">pass_</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;password&quot;</span><span class="p">,</span><span class="n">pass_</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">pass_</span> <span class="o">==</span> <span class="n">password</span><span class="p">:</span>
+                        <span class="c1">#if login[name] == password:</span>
+                        <span class="c1"># index = names.index(name)</span>
+                        <span class="c1">#Condition to check if you&#39;re logged in somewhere else</span>
+                        <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SELECT * FROM SERVERS WHERE USERNAME=</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,(</span><span class="n">name</span><span class="p">,))</span>
+                        <span class="c1"># print(&quot;hi&quot;)</span>
+                        <span class="n">Name</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Name</span><span class="p">)</span><span class="o">==</span><span class="mi">1</span><span class="p">):</span>
+                        <span class="c1">#if(clients[index].fileno()!=-1):</span>
+                            <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;You are logged in elsewhere&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                            <span class="n">client</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                            <span class="k">continue</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">clients</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+                            <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+                            <span class="n">curr</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO SERVERS(USERNAME, PORTS) VALUES (</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,(</span><span class="n">name</span><span class="p">,</span> <span class="n">PORT</span><span class="p">))</span>
+                            <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+                            <span class="c1"># index = names.index(name)</span>
+                            <span class="c1"># clients[index] = client</span>
+                            <span class="c1">#active_chat[name] = None</span>
+                            <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;Logged In&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;Incorrect Password&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                        <span class="n">client</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                        <span class="k">continue</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">&quot;Username not found, please sign up!&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                    <span class="k">continue</span>
+
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Name of the client is </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="n">thread</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">handle</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">client</span><span class="p">,</span><span class="n">addr</span><span class="p">))</span>
+            <span class="n">thread</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+            <span class="c1"># dbthread = threading.Thread(target=handleDB, args=(client,))</span>
+            <span class="c1"># dbthread.start()</span>
+
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">continue</span></div>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Server is listening..&quot;</span><span class="p">)</span>
+
+<span class="n">conn</span> <span class="o">=</span> <span class="n">psycopg2</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
+   <span class="n">database</span><span class="o">=</span><span class="s2">&quot;postgres&quot;</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="s1">&#39;postgres&#39;</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="s1">&#39;password&#39;</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span> <span class="s1">&#39;5432&#39;</span>
+<span class="p">)</span>
+
+<span class="n">curr</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+
+<span class="k">if</span> <span class="vm">__name__</span><span class="o">==</span><span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">receive</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">FastChat</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules.html">FastChat</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2022, PACmen.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.5</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

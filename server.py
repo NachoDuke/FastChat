@@ -561,4 +561,5 @@ conn = psycopg2.connect(
 
 curr = conn.cursor()
 
-receive()
+if __name__=="__main__":
+    receive()

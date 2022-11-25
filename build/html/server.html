@@ -16,8 +16,6 @@
     <script type="text/javascript" src="_static/language_data.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="test module" href="test.html" />
-    <link rel="prev" title="script module" href="script.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -31,8 +29,120 @@
         <div class="bodywrapper">
           <div class="body" role="main">
             
-  <div class="section" id="server-module">
-<h1>server module<a class="headerlink" href="#server-module" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="module-server">
+<span id="server-module"></span><h1>server module<a class="headerlink" href="#module-server" title="Permalink to this headline">¶</a></h1>
+<dl class="function">
+<dt id="server.broadcast">
+<code class="descclassname">server.</code><code class="descname">broadcast</code><span class="sig-paren">(</span><em>msg</em>, <em>client</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/server.html#broadcast"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#server.broadcast" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sends the personal message to clients</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>msg</strong> (<em>str</em>) – the message content</li>
+<li><strong>client</strong> (<em>socket.socket</em>) – connection object with the receiving client</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="server.broadcastGroup">
+<code class="descclassname">server.</code><code class="descname">broadcastGroup</code><span class="sig-paren">(</span><em>msg</em>, <em>client</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/server.html#broadcastGroup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#server.broadcastGroup" title="Permalink to this definition">¶</a></dt>
+<dd><p>Module used to send text messages to group-members</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>msg</strong> (<em>str</em>) – message content</li>
+<li><strong>client</strong> (<em>list</em>) – list of connection objects with clients</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="server.broadcastI">
+<code class="descclassname">server.</code><code class="descname">broadcastI</code><span class="sig-paren">(</span><em>imMsg</em>, <em>size</em>, <em>msg</em>, <em>client</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/server.html#broadcastI"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#server.broadcastI" title="Permalink to this definition">¶</a></dt>
+<dd><p>Module to send images as personal message to users</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>imMsg</strong> (<em>str</em>) – send the /image message to client, notifying it that an image is to be received</li>
+<li><strong>size</strong> (<em>int</em>) – size of imMsg</li>
+<li><strong>msg</strong> (<em>str</em>) – the image data encoded into string</li>
+<li><strong>client</strong> (<em>socket.socket</em>) – connection object with the client</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="server.broadcastPending">
+<code class="descclassname">server.</code><code class="descname">broadcastPending</code><span class="sig-paren">(</span><em>msg</em>, <em>client</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/server.html#broadcastPending"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#server.broadcastPending" title="Permalink to this definition">¶</a></dt>
+<dd><p>Helper function</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>msg</strong> (<em>str</em>) – the message content</li>
+<li><strong>client</strong> (<em>socket.socket</em>) – connection object with the client</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="server.handle">
+<code class="descclassname">server.</code><code class="descname">handle</code><span class="sig-paren">(</span><em>client</em>, <em>addr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/server.html#handle"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#server.handle" title="Permalink to this definition">¶</a></dt>
+<dd><p>module which receives messages and signals from the user</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>client</strong> (<em>socket.socket</em>) – connection object with the client</li>
+<li><strong>addr</strong> (<em>int</em>) – address of the client</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="server.handleDB">
+<code class="descclassname">server.</code><code class="descname">handleDB</code><span class="sig-paren">(</span><em>client</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/server.html#handleDB"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#server.handleDB" title="Permalink to this definition">¶</a></dt>
+<dd><p>used to insert, retrieve and delete messages when the user is offline</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>client</strong> (<em>socket.socket</em>) – connection object with the client</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="server.receive">
+<code class="descclassname">server.</code><code class="descname">receive</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/server.html#receive"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#server.receive" title="Permalink to this definition">¶</a></dt>
+<dd><p>handles the login information and password from the user</p>
+</dd></dl>
+
 </div>
 
 
@@ -51,30 +161,11 @@
 
 
 <h3>Navigation</h3>
-<p class="caption"><span class="caption-text">Contents:</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="modules.html">FastChat</a><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="client.html">client module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ds_group.html">ds_group module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ds_min.html">ds_min module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ds_one.html">ds_one module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ds_rand.html">ds_rand module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ds_rr.html">ds_rr module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="script.html">script module</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">server module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="test.html">test module</a></li>
-</ul>
-</li>
-</ul>
 
 <div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
-  <li><a href="modules.html">FastChat</a><ul>
-      <li>Previous: <a href="script.html" title="previous chapter">script module</a></li>
-      <li>Next: <a href="test.html" title="next chapter">test module</a></li>
-  </ul></li>
   </ul></li>
 </ul>
 </div>
