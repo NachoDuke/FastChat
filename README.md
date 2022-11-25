@@ -30,15 +30,23 @@ This menu will allow users to message a single other user, message a group or cr
 
 Depending on the users input, we need to send certain messages to the server to process the request. Based on what the server receives, it carries out some checks and if everything seems alright, it returns a corresponding message to the client (usually to determine the outcome of the request). In this way, we handle various kinds of client requests.  
 
+### Personal chatrooms:
+
 As for sending messages between clients, we send a special message encrypted with the help of RSA private key of the user. This encrypted message contains information about the sender and the desired receiver. The server then uses this to ensure that the message is only sent to the desired receiver. After sending the encrypted messsage to the server, the receiver decrypts the message using the public key of sender and gets the message. This ensures end-to-end encryption of messages so that no one else is able to fetch these messages. The user can also send specified images to the receiver which when fetched by the receiver gets stored on their device.
 
-When the receiver is not present in the same chatroom as that of sender or when the receiver is offline, the encrypted message sent by the sender gets stored the database. The receiver can access these messages either by checking the pending messages from the menu or by entering the chatroom again. 
+When the receiver is not present in the same chatroom as that of sender or when the receiver is offline, the encrypted message sent by the sender gets stored the database. The receiver can access these messages either by checking the pending messages from the menu or by entering the chatroom again.
+
+### Group chatrooms:
+
+A user can select the option to create a group. This group is secured by a password hence only someone with the password will be able to join it. This user becomes the admin of the group and experiences additional powers to remove participants from the group. A normal user can join any group by selecting the join group option from the menu given the user knows the name of the group and the password of the group.
+
+All the participants of the group can enter the group's chatroom by selecting the respective option from the menu. This allows users to send end-to-end encrypted messages to pther participants of the group.
 
 ## Execution:
-### run.sh <number of servers> <number of clients> <type of distribution server>:
+### run.sh 'number of servers' 'number of clients' 'type of distribution server':
 This script takes three command line arguments to specify the number of servers to be produced, number of clients present and the type for distribution server to be implemented for load  balancing. The script then generates the desired numbers of servers and clients.
 
-### things.sh <type of distribution server>:
+### things.sh 'type of distribution server':
 This script is used to run the python scrypt file to check latency and throughput.
 
 <!-- ## What we've done so far:
