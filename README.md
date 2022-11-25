@@ -1,4 +1,14 @@
 # FastChat
+
+## List of features  implemented:
+1. Encryption and decryption of messages
+2. Creating and maintaining database
+3. Storage of encrypted passwords
+4. Sending and receiving images
+5. Implementation of personal and group chats
+6. Implementation of special admin features
+7. Load balancing leading to low latency and high throughput
+
 ## Basic Plan
 A multi-server, multi-client system to allow chats between various clients. The basic model for the project will be as follows:
 We create a program that controls a client. This program starts by calling a function called log-in. The login process contains 2 options:
@@ -17,9 +27,16 @@ After a succesful sign up or sign in, the user will be taken to an infinite menu
 
 This menu will allow users to message a single other user, message a group or create/join groups. The user can also quit the program whenever required. Now, we wait for user input to carry out specific instructions.
 
-Depending on the users input, we need to send certain messages to the server to process the request. Based on what the server receives, it carries out some checks and if everything seems alright, it returns a corresponding message to the client (usually to determine the outcome of the request). In this way, we handle various kinds of client requests.
+Depending on the users input, we need to send certain messages to the server to process the request. Based on what the server receives, it carries out some checks and if everything seems alright, it returns a corresponding message to the client (usually to determine the outcome of the request). In this way, we handle various kinds of client requests. The user can also send specified images to the receiver which when fetched by the receiver gets stored on their device. 
 
 As for sending messages between clients, we send a special message which contains information about the sender and the desired receiver. The server then uses this to ensure that the message is only sent to the desired receiver.
+
+## Execution:
+### run.sh <number of servers> <number of clients> <type of distribution server>:
+This script takes three command line arguments to specify the number of servers to be produced, number of clients present and the type for distribution server to be implemented for load  balancing. The script then generates the desired numbers of servers and clients.
+
+### things.sh <type of distribution server>:
+This script is used to run the python scrypt file to check latency and throughput.
 
 ## What we've done so far:
 1. Implemented basic functionalities of the client and created a menu system for a user
