@@ -43,7 +43,7 @@ A user can select the option to create a group. This group is secured by a passw
 All the participants of the group can enter the group's chatroom by selecting the respective option from the menu. This allows users to send end-to-end encrypted messages to pther participants of the group.
 
 ## Execution:
-### run.sh 'number of servers' 'number of clients' 'type of distribution server':
+### runCode.sh 'number of servers' 'number of clients' 'type of distribution server':
 This script takes three command line arguments to specify the number of servers to be produced, number of clients present and the type for distribution server to be implemented for load  balancing. The script then generates the desired numbers of servers and clients.
 
 ### things.sh 'type of distribution server':
